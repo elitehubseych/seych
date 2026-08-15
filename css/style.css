@@ -1,4 +1,4 @@
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
 
         * {
             margin: 0;
@@ -8316,4 +8316,102 @@
         body[data-theme="light"] .authw-label,
         body[data-theme="light"] .authw-subtitle {
             color: #16122d;
+        }
+
+        /* ======================== AUTH REDESIGN: Montserrat + шаги-вкладки ======================== */
+        .authw-title {
+            font-size: 24px;
+        }
+
+        .authw-steps {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex: 1;
+            padding: 2px 6px;
+        }
+
+        .authw-step {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+        }
+
+        .authw-step--current {
+            background: linear-gradient(135deg, #7c5cff, #6366f1);
+            border-color: transparent;
+            color: #fff;
+            transform: scale(1.1);
+            box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.18), 0 6px 18px rgba(99, 92, 255, 0.45);
+        }
+
+        .authw-step--done {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .authw-step:hover {
+            transform: translateY(-2px);
+        }
+
+        .authw-step--current:hover {
+            transform: scale(1.12);
+        }
+
+        .authw-step-line {
+            flex: 1;
+            max-width: 34px;
+            height: 2px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.14);
+            transition: background 0.3s ease;
+        }
+
+        .authw-step-line--done {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+        }
+
+        .authw-btn--primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .authw-btn--primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        body[data-theme="light"] .authw-step {
+            background: rgba(0, 0, 0, 0.06);
+            border-color: rgba(0, 0, 0, 0.16);
+            color: #16122d;
+        }
+
+        body[data-theme="light"] .authw-step--current {
+            background: linear-gradient(135deg, #7c5cff, #6366f1);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.2), 0 6px 18px rgba(99, 92, 255, 0.35);
+        }
+
+        body[data-theme="light"] .authw-step--done {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        body[data-theme="light"] .authw-step-line {
+            background: rgba(0, 0, 0, 0.16);
         }

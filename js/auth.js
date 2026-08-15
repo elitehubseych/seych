@@ -297,8 +297,7 @@
             '<div class="authw-form authw-form--register">',
             '    <div class="authw-reg-top">',
             '        <button type="button" class="authw-back" id="authwRegBack" aria-label="Назад"><i class="fas fa-arrow-left"></i></button>',
-            '        <div class="authw-progress"><div class="authw-progress-fill" id="authwRegProgress"></div></div>',
-            '        <div class="authw-step-count" id="authwRegStepCount"></div>',
+            '        <div class="authw-steps" id="authwRegStepsBar" role="tablist"></div>',
             '    </div>',
             '    <div class="authw-reg-steps" id="authwRegSteps"></div>',
             '</div>'
@@ -325,12 +324,27 @@
         var container = document.getElementById('authwRegSteps');
         if (!container) return;
         var stepDef = REG_STEPS[step];
-        var pct = Math.round(((step + 1) / REG_STEPS.length) * 100);
 
-        var fill = document.getElementById('authwRegProgress');
-        if (fill) fill.style.width = pct + '%';
-        var count = document.getElementById('authwRegStepCount');
-        if (count) count.textContent = (step + 1) + ' / ' + REG_STEPS.length;
+        var bar = document.getElementById('authwRegStepsBar');
+        if (bar) {
+            var barHtml = '';
+            for (var i = 0; i < REG_STEPS.length; i++) {
+                var cls = i < step ? 'done' : (i === step ? 'current' : '');
+                barHtml += '<div class="authw-step' + (cls ? ' authw-step--' + cls : '') + '" data-authw-step="' + i + '" role="tab" title="' + escapeHtml(REG_STEPS[i].title) + '">' + (i < step ? '<i class="fas fa-check"></i>' : (i + 1)) + '</div>';
+                if (i < REG_STEPS.length - 1) {
+                    barHtml += '<div class="authw-step-line' + (i < step ? ' authw-step-line--done' : '') + '"></div>';
+                }
+            }
+            bar.innerHTML = barHtml;
+            var dots = bar.querySelectorAll('[data-authw-step]');
+            for (var d = 0; d < dots.length; d++) {
+                dots[d].addEventListener('click', (function (target) {
+                    return function () {
+                        if (target < regStep) renderRegStep(target, false);
+                    };
+                })(parseInt(dots[d].getAttribute('data-authw-step'), 10)));
+            }
+        }
 
         var html = '';
         if (step === 0) {

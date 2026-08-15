@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content, user-scalable=no">
+    <title>Seych</title>
+    <link rel="icon" type="image/jpg" href="/upload/icon.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app"></div>
+    <div id="startupLoader" class="startup-loader" aria-hidden="true">
+        <div class="startup-loader-card">
+            <img src="/upload/icon.jpg" alt="Seych" class="startup-loader-logo">
+            <div id="startupLoaderTitle" class="startup-loader-title">Обновляем</div>
+            <div id="startupLoaderMarquee" class="startup-loader-marquee">Загрузка</div>
+            <div class="startup-loader-progress"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js" async defer></script>
+
+    <script src="js/config.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/call.js"></script>
+    <script src="js/durak.js"></script>
+    <script src="js/messenger.js"></script>
+    <script src="js/stories.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/bootstrap.js"></script>
+
+<!-- Story Viewer Modal -->
+<div id="storyViewer" class="story-viewer" onclick="handleStoryViewerClick(event)" oncontextmenu="return handleStoryContextMenu(event)">
+    <div class="story-content" onpointerdown="handleStoryPointerDown(event)" onpointermove="handleStoryPointerMove(event)" onpointerup="handleStoryPointerUp(event)" onpointercancel="handleStoryPointerCancel(event)" oncontextmenu="return handleStoryContextMenu(event)">
+        <div id="storyProgressBar" class="story-progress-bar">
+        </div>
+        <div class="story-header">
+            <div class="story-user-info">
+                <div id="storyUserAvatar" class="story-user-avatar"></div>
+                <div>
+                    <div id="storyUserName" class="story-user-name"></div>
+                    <div id="storyTime" class="story-time"></div>
+                </div>
+            </div>
+            <div class="story-actions">
+                <button id="storyMenuBtn" class="story-btn" onclick="toggleStoryMenu(event)">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <button class="story-btn" onclick="closeStoryViewer()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <video id="storyVideo" class="story-video" playsinline oncontextmenu="return handleStoryContextMenu(event)" controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture></video>
+        <div id="storyCaption" class="story-caption"></div>
+        <div class="story-footer">
+            <button id="storyViewsBtn" class="story-like-btn" onclick="showStoryViews(currentStoryIndex)" style="display:none;">
+                <i class="fas fa-eye"></i>
+            </button>
+            <div id="storyCommentInputWrap" class="story-input-wrapper">
+                <input id="storyReplyInput" class="story-input" placeholder="Добавить комментарий..." onkeypress="handleStoryReplyKeypress(event)">
+                <button id="storyCommentSendBtn" class="story-comment-send" onclick="sendStoryComment()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <button id="storyLikeBtn" class="story-like-btn" onclick="toggleStoryLike()">
+                <i class="fas fa-heart"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Story Views Modal -->
+<div id="storyViewsModal" class="story-views-modal">
+    <div class="story-views-content">
+        <div class="story-views-header">
+            <div class="story-views-title">Просмотры</div>
+            <button class="story-views-close" onclick="closeStoryViewsModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="storyViewsList" class="story-views-list"></div>
+    </div>
+</div>
+
+
+</html>

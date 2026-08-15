@@ -1,0 +1,5 @@
+node_modules/
+backend/upload/
+backend/pg_config.json
+.env
+*.log

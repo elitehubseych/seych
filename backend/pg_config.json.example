@@ -1,0 +1,4 @@
+{
+  "_comment": "Скопируйте этот файл в backend/pg_config.json и впишите реальную строку подключения. БД должна быть той же, что использует Node-бэкенд (server.js / messenger_pg.js).",
+  "DATABASE_URL": "postgres://user:password@localhost:5432/dbname?sslmode=require"
+}

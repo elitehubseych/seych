@@ -36,6 +36,47 @@
         }
     }
 
+    function getOrCreateDeviceId() {
+        try {
+            var id = String(localStorage.getItem('seych-device-id') || '').trim();
+            if (!id) {
+                id = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+                localStorage.setItem('seych-device-id', id);
+            }
+            return id;
+        } catch (_) {
+            return 'd' + Date.now().toString(36);
+        }
+    }
+
+    function detectDeviceInfo() {
+        try {
+            var ua = String(navigator.userAgent || '');
+            var platform = '';
+            try {
+                platform = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+            } catch (_) {
+                platform = String(navigator.platform || '');
+            }
+            var browser = '';
+            if (/Edg\//i.test(ua)) browser = 'Edge';
+            else if (/OPR\//i.test(ua)) browser = 'Opera';
+            else if (/CriOS\//i.test(ua)) browser = 'Chrome';
+            else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+            else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+            else if (/Safari\//i.test(ua)) browser = 'Safari';
+            var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+            var type = /iPad/i.test(ua) ? 'Планшет' : (mobile ? 'Телефон' : 'Компьютер');
+            var name = [platform.trim(), browser, type].filter(Boolean).join(' · ');
+            return {
+                name: name || 'Устройство',
+                platform: platform.trim() || (mobile ? 'mobile' : 'desktop')
+            };
+        } catch (_) {
+            return { name: 'Устройство', platform: '' };
+        }
+    }
+
     function escapeHtml(value) {
         return String(value == null ? '' : value)
             .replace(/&/g, '&amp;')
@@ -260,7 +301,14 @@
         }
         setPaneMessage('[data-authw-pane="login"]', '', '');
         setBtnLoading(btn, true);
-        authApi('login', { username: username, password: password })
+        var devInfo = detectDeviceInfo();
+        authApi('login', {
+            username: username,
+            password: password,
+            deviceId: getOrCreateDeviceId(),
+            deviceName: devInfo.name,
+            platform: devInfo.platform
+        })
             .then(function (data) {
                 var profile = {
                     provider: 'seych',
@@ -625,7 +673,10 @@
             username: regData.username || '',
             password: regData.password || '',
             passwordRepeat: regData.password || '',
-            avatar: regData.avatar || ''
+            avatar: regData.avatar || '',
+            deviceId: getOrCreateDeviceId(),
+            deviceName: detectDeviceInfo().name,
+            platform: detectDeviceInfo().platform
         })
             .then(function (data) {
                 var profile = {
@@ -671,27 +722,18 @@
             '<div class="authw-form authw-form--qr">',
             '    <h2 class="authw-title">Вход по QR-коду</h2>',
             '    <p class="authw-subtitle">На телефоне: Настройки → Вход по QR-код, отсканируйте этот код</p>',
-            '    <label class="authw-field">',
-            '        <span class="authw-label">Название устройства</span>',
-            '        <div class="authw-input-wrap">',
-            '            <i class="fas fa-laptop authw-input-icon"></i>',
-            '            <input type="text" id="authwQrDeviceName" class="authw-input" placeholder="Например, Ноутбук" maxlength="60">',
-            '        </div>',
-            '    </label>',
-            '    <button type="button" class="authw-btn authw-btn--primary" id="authwQrStart">Показать QR-код</button>',
             '    <div class="authw-qr-box" id="authwQrBox">',
-            '        <div class="authw-qr-placeholder" id="authwQrPlaceholder"><i class="fas fa-qrcode"></i><span>Нажмите, чтобы получить код</span></div>',
+            '        <div class="authw-qr-placeholder" id="authwQrPlaceholder"><i class="fas fa-qrcode"></i><span>Генерируем код...</span></div>',
             '        <canvas id="authwQrCanvas" hidden></canvas>',
             '    </div>',
             '    <div class="authw-form-message"></div>',
             '    <div class="authw-qr-status" id="authwQrStatus"></div>',
             '    <div class="authw-qr-countdown" id="authwQrCountdown"></div>',
+            '    <button type="button" class="authw-btn authw-btn--ghost" id="authwQrRefresh"><i class="fas fa-sync-alt"></i> Обновить код</button>',
             '</div>'
         ].join('');
-        document.getElementById('authwQrStart').addEventListener('click', startQrFlow);
-        document.getElementById('authwQrDeviceName').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') startQrFlow();
-        });
+        document.getElementById('authwQrRefresh').addEventListener('click', startQrFlow);
+        startQrFlow();
     }
 
     function startQrFlow() {
@@ -700,12 +742,14 @@
             return;
         }
         stopQrFlow();
-        var deviceName = String(document.getElementById('authwQrDeviceName')?.value || '').trim().slice(0, 60);
         setQrStatus('Создаём QR-код...');
+        var devInfo = detectDeviceInfo();
         fetchGeo()
             .then(function (geo) {
                 return authApi('qr_create', {
-                    deviceName: deviceName,
+                    deviceId: getOrCreateDeviceId(),
+                    deviceName: devInfo.name,
+                    platform: devInfo.platform,
                     ip: geo.ip || '',
                     city: geo.city || ''
                 });
@@ -1013,7 +1057,14 @@
             identityKeys: typeof buildIdentityKeys === 'function' ? buildIdentityKeys(me) : [],
             provider: String(me.provider || '').trim()
         };
-        authApi('qr_confirm', { token: token, user: user })
+        var devInfo = detectDeviceInfo();
+        authApi('qr_confirm', {
+            token: token,
+            user: user,
+            deviceId: getOrCreateDeviceId(),
+            deviceName: devInfo.name,
+            platform: devInfo.platform
+        })
             .then(function () {
                 var modal = document.getElementById('authwScanModal');
                 if (!modal) return;
@@ -1083,6 +1134,132 @@
         }
     }
 
+    /* ===================== СЕССИИ И УСТРОЙСТВА ===================== */
+
+    function currentAuthUser() {
+        try {
+            return (typeof authProfile !== 'undefined' && authProfile) || {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function formatSessionTime(ts) {
+        ts = Number(ts || 0);
+        if (!ts) return '—';
+        var diff = Date.now() - ts;
+        var s = Math.floor(diff / 1000);
+        if (s < 60) return 'только что';
+        var m = Math.floor(s / 60);
+        if (m < 60) return m + ' мин. назад';
+        var h = Math.floor(m / 60);
+        if (h < 24) return h + ' ч. назад';
+        var d = Math.floor(h / 24);
+        if (d < 30) return d + ' дн. назад';
+        return new Date(ts).toLocaleDateString();
+    }
+
+    function showSeychSessions() {
+        var me = currentAuthUser();
+        var appUserId = String(me.appUserId || '').trim();
+        if (!appUserId) {
+            alert('Войдите в аккаунт');
+            return;
+        }
+        var deviceId = getOrCreateDeviceId();
+
+        var existing = document.getElementById('authwSessionsModal');
+        if (existing) existing.remove();
+
+        var modal = document.createElement('div');
+        modal.className = 'authw-scan-modal';
+        modal.id = 'authwSessionsModal';
+        modal.innerHTML = [
+            '<div class="authw-scan-content authw-sessions-content">',
+            '    <div class="authw-scan-header"><i class="fas fa-laptop-house"></i> Сессии и устройства</div>',
+            '    <div class="authw-sessions-list" id="authwSessionsList">',
+            '        <div class="authw-sessions-loading"><i class="fas fa-spinner fa-spin"></i> Загружаем...</div>',
+            '    </div>',
+            '    <div class="authw-sessions-actions">',
+            '        <button type="button" class="authw-btn authw-btn--ghost" id="authwSessionsRefresh"><i class="fas fa-sync-alt"></i> Обновить</button>',
+            '        <button type="button" class="authw-scan-close" id="authwSessionsClose"><i class="fas fa-times"></i> Закрыть</button>',
+            '    </div>',
+            '</div>'
+        ].join('');
+        document.body.appendChild(modal);
+        document.getElementById('authwSessionsClose').addEventListener('click', function () {
+            modal.remove();
+        });
+        document.getElementById('authwSessionsRefresh').addEventListener('click', loadSessionsList);
+        loadSessionsList();
+    }
+
+    function loadSessionsList() {
+        var me = currentAuthUser();
+        var appUserId = String(me.appUserId || '').trim();
+        if (!appUserId) return;
+        var deviceId = getOrCreateDeviceId();
+        var host = document.getElementById('authwSessionsList');
+        if (!host) return;
+        host.innerHTML = '<div class="authw-sessions-loading"><i class="fas fa-spinner fa-spin"></i> Загружаем...</div>';
+        authApi('sessions_list', { appUserId: appUserId, deviceId: deviceId })
+            .then(function (data) {
+                renderSessionsList(host, data.sessions);
+            })
+            .catch(function (err) {
+                host.innerHTML = '<div class="authw-sessions-empty authw-sessions-empty--error">' + escapeHtml((err && err.message) || 'Не удалось загрузить сессии') + '</div>';
+            });
+    }
+
+    function renderSessionsList(host, sessions) {
+        if (!host) return;
+        if (!Array.isArray(sessions) || !sessions.length) {
+            host.innerHTML = '<div class="authw-sessions-empty">Пока нет активных сессий.<br>Сессии появляются при входе по логину или по QR-коду.</div>';
+            return;
+        }
+        host.innerHTML = sessions.map(function (s) {
+            var isMobile = /Android|iPhone|iPad|iPod|mobile|Phone/i.test(String(s.platform || '') + ' ' + String(s.deviceName || ''));
+            var icon = isMobile ? 'fa-mobile-alt' : 'fa-laptop';
+            var meta = [];
+            if (s.ip) meta.push('IP: ' + escapeHtml(s.ip));
+            if (s.city) meta.push(escapeHtml(s.city));
+            if (s.platform) meta.push(escapeHtml(s.platform));
+            return [
+                '<div class="authw-session-item' + (s.isCurrent ? ' authw-session-item--current' : '') + '">',
+                '    <div class="authw-session-icon"><i class="fas ' + icon + '"></i></div>',
+                '    <div class="authw-session-info">',
+                '        <div class="authw-session-name">' + escapeHtml(s.deviceName || 'Устройство') + (s.isCurrent ? ' <span class="authw-session-now">это устройство</span>' : '') + '</div>',
+                '        <div class="authw-session-meta">' + (meta.length ? meta.join(' · ') : '') + '</div>',
+                '        <div class="authw-session-meta">Активно: ' + formatSessionTime(s.lastSeenAt) + '</div>',
+                '    </div>',
+                s.isCurrent
+                    ? '<div class="authw-session-btn authw-session-btn--ok"><i class="fas fa-check"></i></div>'
+                    : '<button type="button" class="authw-session-btn" data-target="' + escapeHtml(s.deviceId) + '" title="Завершить сессию"><i class="fas fa-power-off"></i></button>',
+                '</div>'
+            ].join('');
+        }).join('');
+        host.querySelectorAll('[data-target]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                terminateSession(String(btn.getAttribute('data-target') || ''));
+            });
+        });
+    }
+
+    function terminateSession(targetId) {
+        var me = currentAuthUser();
+        var appUserId = String(me.appUserId || '').trim();
+        var deviceId = getOrCreateDeviceId();
+        if (!appUserId || !targetId) return;
+        if (!window.confirm('Завершить сессию на этом устройстве?')) return;
+        authApi('sessions_terminate', { appUserId: appUserId, deviceId: deviceId, targetId: targetId })
+            .then(function () {
+                loadSessionsList();
+            })
+            .catch(function (err) {
+                alert((err && err.message) || 'Не удалось завершить сессию');
+            });
+    }
+
     window.SeychAuth = {
         show: function () {
             if (typeof tryTelegramWebAppAuth === 'function') {
@@ -1097,4 +1274,9 @@
         }
     };
     window.showSeychQrScanner = showSeychQrScanner;
+    window.showSeychSessions = showSeychSessions;
+    window.getSeychDeviceId = getOrCreateDeviceId;
+    window.getSeychDeviceName = function () {
+        return detectDeviceInfo().name;
+    };
 })();

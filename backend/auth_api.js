@@ -6,6 +6,51 @@ const QR_TTL_MS = 5 * 60 * 1000;
 const qrSessions = new Map();
 let cleanupTimer = null;
 
+const MAX_SESSIONS_PER_USER = 20;
+const deviceSessions = new Map();
+
+function sessionKey(userId, deviceId) {
+    return `${String(userId || '').trim()}::${String(deviceId || '').trim()}`;
+}
+
+function normalizeDeviceName(value) {
+    return String(value || '')
+        .replace(/[\r\n<>]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60) || 'Новое устройство';
+}
+
+function upsertDeviceSession(userId, info) {
+    const uid = String(userId || '').trim();
+    const did = String((info && info.deviceId) || '').trim();
+    if (!uid || !did) return null;
+    const key = sessionKey(uid, did);
+    const prev = deviceSessions.get(key);
+    const session = {
+        userId: uid,
+        deviceId: did,
+        deviceName: normalizeDeviceName(info && info.deviceName),
+        platform: String((info && info.platform) || '').trim().slice(0, 60),
+        ip: String((info && info.ip) || '').trim().slice(0, 64),
+        city: String((info && info.city) || '').trim().slice(0, 120),
+        createdAt: prev ? prev.createdAt : now(),
+        lastSeenAt: now()
+    };
+    deviceSessions.set(key, session);
+    const userKeys = [];
+    for (const [k, s] of deviceSessions) {
+        if (s.userId === uid) userKeys.push([k, s.lastSeenAt]);
+    }
+    if (userKeys.length > MAX_SESSIONS_PER_USER) {
+        userKeys.sort((a, b) => b[1] - a[1]);
+        for (let i = MAX_SESSIONS_PER_USER; i < userKeys.length; i++) {
+            deviceSessions.delete(userKeys[i][0]);
+        }
+    }
+    return session;
+}
+
 function now() {
     return Date.now();
 }
@@ -113,6 +158,10 @@ async function handle(body, context = {}) {
             return qrConfirm(body);
         case 'qr_poll':
             return qrPoll(body);
+        case 'sessions_list':
+            return sessionsList(body);
+        case 'sessions_terminate':
+            return sessionsTerminate(body);
         default:
             return jsonErr(`Неизвестное действие: ${action}`, 400);
     }
@@ -155,6 +204,12 @@ async function register(body) {
                updated_at = EXCLUDED.updated_at`,
             [userId, usernameCheck.username, name, avatar, passwordHash, email, now()]
         );
+        upsertDeviceSession(userId, {
+            deviceId: body && body.deviceId,
+            deviceName: body && body.deviceName,
+            platform: body && body.platform,
+            ip: body && body.ip
+        });
         return jsonOk({
             appUserId: userId,
             name,
@@ -194,6 +249,12 @@ async function login(body) {
         if (!row || !row.password_hash) return jsonErr('Неверный логин или пароль', 401);
         const ok = await verifyPassword(password, row.password_hash);
         if (!ok) return jsonErr('Неверный логин или пароль', 401);
+        upsertDeviceSession(row.id, {
+            deviceId: body && body.deviceId,
+            deviceName: body && body.deviceName,
+            platform: body && body.platform,
+            ip: body && body.ip
+        });
         return jsonOk({
             appUserId: String(row.id || '').trim(),
             name: String(row.display_name || '').trim() || String(row.username || ''),
@@ -219,17 +280,22 @@ function findQrSession(token) {
 
 function qrCreate(body, context) {
     const token = generateToken();
-    const deviceName = String((body && body.deviceName) || '')
-        .trim()
-        .replace(/[\r\n<>]+/g, ' ')
-        .slice(0, 60);
+    const deviceName = normalizeDeviceName((body && body.deviceName) || '');
     const city = String((body && body.city) || '').trim().slice(0, 120);
     const ip = String((body && body.ip) || '').trim() || normalizeIp((context && context.ip) || '');
+    const pcDevice = {
+        deviceId: String((body && body.deviceId) || '').trim().slice(0, 64),
+        deviceName,
+        platform: String((body && body.platform) || '').trim().slice(0, 60),
+        ip,
+        city
+    };
     qrSessions.set(token, {
         token,
         status: 'waiting',
         createdAt: now(),
         expiresAt: now() + QR_TTL_MS,
+        pcDevice,
         requester: {
             name: deviceName || 'Новое устройство',
             ip,
@@ -268,6 +334,11 @@ function qrConfirm(body) {
         identityKeys: Array.isArray(user.identityKeys) ? user.identityKeys : [],
         provider: String(user.provider || '').trim()
     };
+    session.phoneDevice = {
+        deviceId: String((body && body.deviceId) || '').trim().slice(0, 64),
+        deviceName: normalizeDeviceName(body && body.deviceName),
+        platform: String((body && body.platform) || '').trim().slice(0, 60)
+    };
     return jsonOk({ success: true });
 }
 
@@ -276,10 +347,50 @@ function qrPoll(body) {
     if (!session) return jsonOk({ status: 'expired' });
     if (session.status === 'confirmed') {
         const user = session.user || {};
+        const uid = String(user.appUserId || '').trim();
+        if (uid) {
+            upsertDeviceSession(uid, session.pcDevice);
+            if (session.phoneDevice && session.phoneDevice.deviceId) {
+                upsertDeviceSession(uid, session.phoneDevice);
+            }
+        }
         qrSessions.delete(session.token);
         return jsonOk({ status: 'confirmed', user });
     }
     return jsonOk({ status: 'waiting' });
+}
+
+function sessionsList(body) {
+    const uid = String((body && body.appUserId) || '').trim();
+    const curDevice = String((body && body.deviceId) || '').trim();
+    if (!uid) return jsonErr('Укажите аккаунт');
+    const list = [];
+    for (const [, s] of deviceSessions) {
+        if (s.userId === uid) {
+            list.push({
+                deviceId: s.deviceId,
+                deviceName: s.deviceName,
+                platform: s.platform,
+                ip: s.ip,
+                city: s.city,
+                createdAt: s.createdAt,
+                lastSeenAt: s.lastSeenAt,
+                isCurrent: !!curDevice && s.deviceId === curDevice
+            });
+        }
+    }
+    list.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    return jsonOk({ sessions: list });
+}
+
+function sessionsTerminate(body) {
+    const uid = String((body && body.appUserId) || '').trim();
+    const curDevice = String((body && body.deviceId) || '').trim();
+    const target = String((body && body.targetId) || '').trim();
+    if (!uid || !target) return jsonErr('Недостаточно данных');
+    if (target === curDevice) return jsonErr('Нельзя завершить текущую сессию', 400);
+    const existed = deviceSessions.delete(sessionKey(uid, target));
+    return jsonOk({ removed: existed });
 }
 
 module.exports = { handle, initAuth, isEnabled };

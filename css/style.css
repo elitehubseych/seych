@@ -8415,3 +8415,159 @@
         body[data-theme="light"] .authw-step-line {
             background: rgba(0, 0, 0, 0.16);
         }
+
+        /* --- Сессии и устройства --- */
+        .authw-sessions-content {
+            max-height: 84vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .authw-sessions-list {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 2px 0 10px;
+            text-align: left;
+        }
+
+        .authw-session-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .authw-session-item--current {
+            border-color: rgba(124, 92, 255, 0.6);
+            background: rgba(124, 92, 255, 0.12);
+        }
+
+        .authw-session-icon {
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7c5cff, #6366f1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #fff;
+        }
+
+        .authw-session-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .authw-session-name {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .authw-session-now {
+            color: #a78bfa;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .authw-session-meta {
+            font-size: 12px;
+            opacity: 0.65;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .authw-session-btn {
+            border: none;
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 10px;
+            background: rgba(255, 60, 90, 0.16);
+            color: #ff5c77;
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, transform 0.15s ease;
+        }
+
+        .authw-session-btn:hover {
+            background: rgba(255, 60, 90, 0.3);
+            transform: scale(1.06);
+        }
+
+        .authw-session-btn--ok {
+            background: rgba(34, 197, 94, 0.16);
+            color: #5cff9a;
+            cursor: default;
+        }
+
+        .authw-session-btn--ok:hover {
+            background: rgba(34, 197, 94, 0.16);
+            transform: none;
+        }
+
+        .authw-sessions-loading,
+        .authw-sessions-empty {
+            padding: 24px 10px;
+            text-align: center;
+            opacity: 0.7;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .authw-sessions-empty--error {
+            color: #ff8fa3;
+        }
+
+        .authw-sessions-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .authw-sessions-actions .authw-btn {
+            margin: 0;
+            width: auto;
+            flex: 1;
+            font-size: 13px;
+            padding: 11px 12px;
+        }
+
+        .authw-sessions-actions .authw-scan-close {
+            margin: 0;
+            flex: 1;
+        }
+
+        body[data-theme="light"] .authw-session-item {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body[data-theme="light"] .authw-session-name {
+            color: #16122d;
+        }
+
+        body[data-theme="light"] .authw-session-now {
+            color: #7c5cff;
+        }
+
+        body[data-theme="light"] .authw-session-meta {
+            color: #16122d;
+            opacity: 0.6;
+        }

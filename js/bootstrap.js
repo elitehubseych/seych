@@ -507,6 +507,7 @@
                                     <button type="button" class="blacklist-open-btn" onclick="openAppearanceSettingsModal()"><i class="fas fa-palette"></i> Внешний вид</button>
                                     <button type="button" class="blacklist-open-btn" onclick="openBlacklistModal()"><i class="fas fa-ban"></i> Черный список<span class="bl-count">${(messengerProfile.blacklist || []).length}</span></button>
                                     <button type="button" class="blacklist-open-btn" onclick="showSeychQrScanner()"><i class="fas fa-qrcode"></i> Вход по QR-код</button>
+                                    <button type="button" class="blacklist-open-btn" onclick="showSeychSessions()"><i class="fas fa-laptop-house"></i> Сессии и устройства</button>
                                     <div class="settings-signout-row"><button type="button" class="contact-btn delete settings-signout-btn" onclick="signOutProfile()"><i class="fas fa-sign-out-alt"></i> Выйти из аккаунта</button></div>
                                 </div>
                             `

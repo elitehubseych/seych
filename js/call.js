@@ -1590,19 +1590,10 @@
                     <div class="gradient-bg"></div>
                     <div class="auth-card">
                         <h2><i class="fas fa-shield-alt"></i> Вход в Seych</h2>
-                        <p class="auth-subtitle">Авторизуйтесь через Telegram, Google или VK</p>
-                        <div class="auth-providers">
-                            <div class="auth-provider" id="telegramAuthWidget"></div>
-                            <button class="btn" onclick="startGoogleAuth()"><i class="fab fa-google"></i> Войти через Google</button>
-                            <div class="auth-provider" id="vkAuthWidget"></div>
-                        </div>
+                        <p class="auth-subtitle">Авторизуйтесь по логину и паролю</p>
                     </div>
                 </div>
             `;
-            if (!tryTelegramWebAppAuth()) {
-                renderTelegramWidget();
-            }
-            renderVkIdWidget();
         }
 
         function buildMicCaptureConstraintsRich() {
@@ -2702,7 +2693,6 @@
             const tryConnectCandidate = (index) => {
                 if (index >= candidates.length) {
                     isConnected = false;
-                    showNotification('Связь', 'Не удалось подключиться к серверу. Повторяем попытку...', 'warning');
                     scheduleWsReconnect();
                     return;
                 }
@@ -2728,8 +2718,8 @@
                     socket.send(JSON.stringify(payload));
                     socket.onmessage = handleMessage;
                     socket.onerror = (e) => {
-                    console.error('[WS] Error connecting to:', candidates[index], e);
-                };
+                        console.error('[WS] Error connecting to:', candidates[index], e);
+                    };
                     syncMessengerIdentity();
                     flushPendingMessengerEvents();
                     if (wsHeartbeatTimer) {
@@ -2740,9 +2730,6 @@
                             socket.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
                         }
                     }, 10000);
-                    if (isReconnect) {
-                        showNotification('Связь', 'Соединение восстановлено', 'success');
-                    }
                 };
                 socket.onclose = (ev) => {
                     clearTimeout(connectTimeout);
@@ -2760,7 +2747,6 @@
                         clearInterval(wsHeartbeatTimer);
                         wsHeartbeatTimer = null;
                     }
-                    showNotification('Соединение потеряно', 'Пробуем переподключиться...', 'warning');
                     scheduleWsReconnect();
                 };
             };

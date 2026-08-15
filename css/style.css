@@ -8571,3 +8571,118 @@
             color: #16122d;
             opacity: 0.6;
         }
+
+        /* --- Иконка в шапке Seych --- */
+        .authw-brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 13px;
+            background: linear-gradient(135deg, #7c5cff, #6366f1 55%, #22d3ee);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            color: #fff;
+            box-shadow: 0 8px 22px rgba(99, 92, 255, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+
+        /* --- Тост-уведомления сверху --- */
+        .seych-toast-stack {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            width: min(92vw, 420px);
+        }
+
+        .seych-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+            background: rgba(16, 14, 34, 0.86);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-left-width: 3px;
+            border-radius: 14px;
+            padding: 10px 14px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+            color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateY(-12px) scale(0.97);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .seych-toast--show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .seych-toast--info {
+            border-left-color: #6366f1;
+        }
+
+        .seych-toast--success {
+            border-left-color: #22c55e;
+        }
+
+        .seych-toast--warning {
+            border-left-color: #f59e0b;
+        }
+
+        .seych-toast--error {
+            border-left-color: #ef4444;
+        }
+
+        .seych-toast-icon {
+            color: #a78bfa;
+            font-size: 15px;
+            margin-top: 1px;
+        }
+
+        .seych-toast--success .seych-toast-icon {
+            color: #4ade80;
+        }
+
+        .seych-toast--warning .seych-toast-icon {
+            color: #fbbf24;
+        }
+
+        .seych-toast--error .seych-toast-icon {
+            color: #f87171;
+        }
+
+        .seych-toast-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .seych-toast-title {
+            font-weight: 700;
+            font-size: 13px;
+            margin-bottom: 1px;
+        }
+
+        .seych-toast-msg {
+            opacity: 0.82;
+        }
+
+        body[data-theme="light"] .seych-toast {
+            background: rgba(255, 255, 255, 0.92);
+            border-color: rgba(0, 0, 0, 0.12);
+            color: #16122d;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+        }

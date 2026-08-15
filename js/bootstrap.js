@@ -907,11 +907,10 @@
             vkHiddenContactIds = loadVkHiddenContacts();
             setInterval(refreshConnectionQuality, 4000);
             window.addEventListener('offline', () => {
-                if (roomId) showNotification('Соединение потеряно', 'Интернет отключен', 'warning');
+                // Уведомление о потере связи намеренно скрыто.
             });
             window.addEventListener('online', () => {
                 if (roomId) {
-                    showNotification('Связь', 'Интернет восстановлен, переподключаемся...', 'info');
                     reconnectNow();
                 }
             });

@@ -875,8 +875,59 @@
         }
 
         function showNotification(title, message, type = 'info', iconMarkup = '') {
-            // Уведомления отключены: весь стек Snackbar убран.
-            return;
+            try {
+                if (typeof document === 'undefined') return;
+                let stack = document.getElementById('seychToastStack');
+                if (!stack) {
+                    stack = document.createElement('div');
+                    stack.id = 'seychToastStack';
+                    stack.className = 'seych-toast-stack';
+                    document.body.appendChild(stack);
+                }
+                const kind = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+                const toast = document.createElement('div');
+                toast.className = 'seych-toast seych-toast--' + kind;
+                let icon = String(iconMarkup || '');
+                if (!icon) {
+                    const icons = {
+                        success: '<i class="fas fa-check-circle"></i>',
+                        warning: '<i class="fas fa-exclamation-triangle"></i>',
+                        error: '<i class="fas fa-times-circle"></i>',
+                        info: '<i class="fas fa-info-circle"></i>'
+                    };
+                    icon = icons[kind] || icons.info;
+                }
+                const titleHtml = title ? '<div class="seych-toast-title">' + escapeHtml(title) + '</div>' : '';
+                toast.innerHTML =
+                    '<span class="seych-toast-icon">' + icon + '</span>' +
+                    '<div class="seych-toast-text">' + titleHtml + '<div class="seych-toast-msg">' + escapeHtml(message || '') + '</div></div>';
+                toast.addEventListener('click', function () {
+                    dismissToast(toast);
+                });
+                stack.appendChild(toast);
+                requestAnimationFrame(function () {
+                    toast.classList.add('seych-toast--show');
+                });
+                toast.__hideTimer = setTimeout(function () {
+                    dismissToast(toast);
+                }, 3200);
+                while (stack.children.length > 4) {
+                    dismissToast(stack.firstElementChild);
+                }
+            } catch (_) {}
+        }
+
+        function dismissToast(toast) {
+            if (!toast || toast.__hiding) return;
+            toast.__hiding = true;
+            if (toast.__hideTimer) {
+                clearTimeout(toast.__hideTimer);
+                toast.__hideTimer = null;
+            }
+            toast.classList.remove('seych-toast--show');
+            setTimeout(function () {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 280);
         }
 
         function escapeHtml(v) {

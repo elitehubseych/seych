@@ -152,7 +152,7 @@
             '<div class="main-screen main-screen--auth">',
             '    <div class="gradient-bg"></div>',
             '    <div class="authw-wrap">',
-            '        <div class="authw-brand"><img src="' + getAssetPath('upload/icon.jpg') + '" alt="Seych"><span>Seych</span></div>',
+            '        <div class="authw-brand"><span class="authw-brand-icon"><i class="fas fa-paper-plane"></i></span><span>Seych</span></div>',
             '        <div class="authw-tabs" role="tablist">',
             '            <button type="button" class="authw-tab" data-authw-tab="login" role="tab">Вход</button>',
             '            <button type="button" class="authw-tab" data-authw-tab="register" role="tab">Регистрация</button>',
@@ -163,14 +163,6 @@
             '            <div class="authw-pane authw-pane--register" data-authw-pane="register"></div>',
             '            <div class="authw-pane authw-pane--qr" data-authw-pane="qr"></div>',
             '        </div>',
-            '        <div class="authw-social">',
-            '            <div class="authw-social-title">Вход через соцсети</div>',
-            '            <div class="authw-social-row">',
-            '                <div class="authw-social-tg" id="telegramAuthWidget"></div>',
-            '                <button type="button" class="authw-social-btn authw-social-btn--google" onclick="startGoogleAuth()"><i class="fab fa-google"></i> Google</button>',
-            '                <div class="authw-social-vk" id="vkAuthWidget"></div>',
-            '            </div>',
-            '        </div>',
             '    </div>',
             '</div>'
         ].join('\n');
@@ -180,27 +172,12 @@
         renderQrPane();
         setTab(currentTab);
 
-        try {
-            if (typeof renderTelegramWidget === 'function') renderTelegramWidget();
-            if (typeof renderVkIdWidget === 'function') renderVkIdWidget();
-        } catch (_) {}
-
         var tabs = document.querySelectorAll('[data-authw-tab]');
         for (var i = 0; i < tabs.length; i++) {
             tabs[i].addEventListener('click', function () {
                 setTab(this.getAttribute('data-authw-tab'));
             });
         }
-    }
-
-    function getAssetPath(rel) {
-        try {
-            if (typeof getBasePath === 'function') {
-                var base = getBasePath().replace(/\/$/, '');
-                return base + '/' + String(rel || '').replace(/^\/+/, '');
-            }
-        } catch (_) {}
-        return '/' + String(rel || '').replace(/^\/+/, '');
     }
 
     function setTab(tab) {

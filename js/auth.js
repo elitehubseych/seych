@@ -111,6 +111,7 @@
         }
         return (async function () {
             var lastErr = null;
+            var details = [];
             for (var i = 0; i < AUTH_API_HOSTS.length; i++) {
                 var apiUrl = AUTH_API_HOSTS[i];
                 try {
@@ -124,12 +125,18 @@
                     try {
                         data = rawText ? JSON.parse(rawText) : null;
                     } catch (_) {
-                        if (/^\s*</.test(String(rawText || ''))) throw new Error('Сервер вернул HTML вместо JSON');
+                        if (/^\s*</.test(String(rawText || ''))) {
+                            var htmlErr = new Error('Сервер вернул HTML вместо JSON (' + apiUrl + ')');
+                            details.push(apiUrl + ': HTML (HTTP ' + response.status + ')');
+                            throw htmlErr;
+                        }
+                        details.push(apiUrl + ': некорректный ответ (HTTP ' + response.status + ')');
                         throw new Error(rawText ? 'Некорректный ответ сервера' : 'Пустой ответ сервера');
                     }
                     if (!data || !data.success) {
                         var err = new Error((data && data.error) || 'Ошибка сервера');
                         err.serverError = true;
+                        details.push(apiUrl + ': ' + err.message);
                         throw err;
                     }
                     if (i > 0 && apiUrl !== AUTH_API_HOSTS[0]) {
@@ -140,8 +147,17 @@
                     return data.data || {};
                 } catch (err) {
                     lastErr = err;
+                    try {
+                        console.error('[authApi] ' + action + ' -> ' + apiUrl + ':', err && err.message ? err.message : err);
+                    } catch (_) {}
                     if (err.serverError) break;
                 }
+            }
+            if (!details.length) details.push('хостов нет');
+            if (lastErr && lastErr.message && details.length > 1 && !lastErr.serverError) {
+                try {
+                    lastErr = new Error(lastErr.message + ' [' + details.join(' | ') + ']');
+                } catch (_) {}
             }
             throw lastErr || new Error('Сервер недоступен');
         })();

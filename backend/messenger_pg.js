@@ -313,10 +313,17 @@ async function ensureTables() {
 }
 
 async function initMessengerPostgres() {
-  const conn = env('DATABASE_URL');
-  if (!conn) {
+  const rawConn = env('DATABASE_URL');
+  if (!rawConn) {
     console.warn('[messenger_pg] DATABASE_URL not set');
     return false;
+  }
+  let conn = rawConn;
+  const sslModeMatch = /sslmode=([^&\s]+)/i.exec(conn);
+  if (sslModeMatch) {
+    const qIdx = conn.indexOf('?');
+    const query = qIdx >= 0 ? conn.slice(qIdx + 1).split('&').filter((p) => !/^sslmode=/i.test(p)).join('&') : '';
+    conn = (qIdx >= 0 ? conn.slice(0, qIdx) : conn) + (query ? '?' + query : '');
   }
   try {
     const poolOpts = {
@@ -327,7 +334,7 @@ async function initMessengerPostgres() {
     };
     if (env('DATABASE_SSL') === '0') {
       poolOpts.ssl = false;
-    } else if (/sslmode=require|sslmode=verify-full/i.test(conn) || env('PG_SSL') === '1') {
+    } else if (sslModeMatch || env('PG_SSL') === '1') {
       poolOpts.ssl = { rejectUnauthorized: env('PG_SSL_REJECT_UNAUTHORIZED') === '1' };
     }
     pool = new Pool(poolOpts);

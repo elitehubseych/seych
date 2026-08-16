@@ -279,15 +279,152 @@ body {
     border-radius: var(--r-xl);
     box-shadow: var(--shadow-3);
     overflow: hidden;
+    grid-template-columns: 72px minmax(300px, 340px) minmax(0, 1fr);
 }
 
 .messenger-sidebar {
+    grid-column: 2;
+    grid-row: 1;
     background: linear-gradient(180deg, #110c24 0%, #0c0919 100%);
     border-right: 1px solid var(--stroke);
 }
 
 .messenger-workspace {
+    grid-column: 3;
+    grid-row: 1;
     background: var(--bg-1);
+}
+
+/* Панель навигации (rail) */
+.app-rail {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 10px 12px;
+    background: linear-gradient(180deg, #0a0716 0%, #080513 100%);
+    border-right: 1px solid var(--stroke);
+}
+
+.app-rail-logo {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    background: var(--grad-accent);
+    color: #fff;
+    font-size: 17px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--glow-sm);
+    transition: transform .15s, box-shadow .2s;
+}
+
+.app-rail-logo:hover {
+    transform: scale(1.07);
+    box-shadow: var(--glow);
+}
+
+.app-rail-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    justify-content: center;
+}
+
+.app-rail-btn {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-3);
+    font-size: 17px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s, border-color .15s, transform .12s, box-shadow .2s;
+}
+
+.app-rail-btn:hover {
+    background: var(--surface-2);
+    color: var(--text-1);
+    transform: translateY(-1px);
+}
+
+.app-rail-btn.active {
+    background: var(--grad-accent-soft);
+    color: var(--accent-bright);
+    border-color: rgba(124, 92, 255, .45);
+    box-shadow: 0 0 18px rgba(124, 92, 255, .25);
+}
+
+.app-rail-btn.active::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 24px;
+    border-radius: 0 4px 4px 0;
+    background: var(--grad-accent);
+    box-shadow: 0 0 12px rgba(124, 92, 255, .8);
+}
+
+.app-rail-label {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    transform: translateX(-50%);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-3);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: .85;
+}
+
+.app-rail-me {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    padding: 0;
+    border: 2px solid rgba(255, 255, 255, .16);
+    background: var(--bg-3);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .2s, transform .15s;
+}
+
+.app-rail-me:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+
+.app-rail-me.active {
+    border-color: var(--accent-bright);
+    box-shadow: var(--glow-sm);
+}
+
+.app-rail-me img,
+.app-rail-me .messenger-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    font-size: 15px;
 }
 
 /* ---------- 6. Сайдбар ---------- */
@@ -862,7 +999,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 13px 18px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--stroke);
     background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, 0));
 }
@@ -888,8 +1025,9 @@ body {
 }
 
 .messenger-section-title {
-    font-size: 17px;
+    font-size: 18px;
     font-weight: 800;
+    letter-spacing: .2px;
     color: var(--text-1);
 }
 
@@ -1009,17 +1147,31 @@ body {
     filter: blur(2px);
 }
 
-/* Топбар чата */
+/* Топбар чата (баннер) */
 .chat-topbar {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 16px;
-    min-height: 64px;
-    background: linear-gradient(180deg, rgba(14, 11, 30, .97), rgba(14, 11, 30, .92));
-    border-bottom: 1px solid var(--stroke);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, .25);
+    padding: 14px 18px;
+    min-height: 76px;
+    background:
+        radial-gradient(720px 240px at 10% -40%, rgba(160, 107, 255, .55), transparent 65%),
+        radial-gradient(560px 220px at 96% -30%, rgba(56, 224, 255, .2), transparent 60%),
+        linear-gradient(135deg, #2b1b5e 0%, #3a2168 45%, #171030 100%);
+    border-bottom: 1px solid rgba(124, 92, 255, .35);
+    box-shadow: 0 6px 26px rgba(0, 0, 0, .35);
+}
+
+.chat-topbar::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .28), transparent);
 }
 
 .chat-topbar-left {
@@ -1036,21 +1188,21 @@ body {
 }
 
 .chat-topbar-avatar .messenger-avatar {
-    width: 44px;
-    height: 44px;
-    border: 2px solid rgba(255, 255, 255, .14);
-    box-shadow: var(--shadow-1);
+    width: 48px;
+    height: 48px;
+    border: 2px solid rgba(255, 255, 255, .25);
+    box-shadow: var(--glow-sm);
 }
 
 .chat-topbar-online-dot {
     position: absolute;
     right: -2px;
     bottom: -2px;
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: var(--ok);
-    border: 3px solid #0e0b1e;
+    border: 3px solid #261748;
     box-shadow: 0 0 8px rgba(61, 220, 132, .6);
 }
 
@@ -1059,17 +1211,19 @@ body {
 }
 
 .chat-topbar-title {
-    font-size: 15.5px;
+    font-size: 17px;
     font-weight: 800;
-    color: var(--text-1);
+    letter-spacing: .2px;
+    color: #fff;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, .25);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .chat-topbar-status {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, .74);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2515,6 +2669,17 @@ body {
     filter: drop-shadow(0 0 8px rgba(124, 92, 255, .5));
 }
 
+/* Мобильные: rail скрыт, сетка одна колонка */
+@media (max-width: 860px) {
+    .app-rail {
+        display: none;
+    }
+
+    .messenger-shell {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ---------- 21. Светлая тема ---------- */
 body[data-theme='light'],
 body.theme-light {
@@ -2547,6 +2712,23 @@ body[data-theme='light'] .chat-topbar,
 body[data-theme='light'] .chat-input-wrap {
     background: rgba(255, 255, 255, .96);
     border-color: rgba(20, 10, 60, .08);
+}
+
+body[data-theme='light'] .chat-topbar::after {
+    background: linear-gradient(90deg, transparent, rgba(20, 10, 60, .14), transparent);
+}
+
+body[data-theme='light'] .chat-topbar-title {
+    color: #1a1532;
+    text-shadow: none;
+}
+
+body[data-theme='light'] .chat-topbar-status {
+    color: #6d6699;
+}
+
+body[data-theme='light'] .chat-topbar-avatar .messenger-avatar {
+    border-color: rgba(20, 10, 60, .16);
 }
 
 body[data-theme='light'] .chat-topbar-online-dot {

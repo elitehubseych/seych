@@ -966,13 +966,25 @@
                         ${sidebarVisible ? `<button type="button" class="messenger-compose-fab" onclick="openCreateGroupModal()" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
                     `}
                 </div>
-                <div class="sidebar-footer-nav">
-                    <button type="button" class="messenger-nav-btn ${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')" title="Звонки"><i class="fas fa-phone"></i></button>
-                    <button type="button" class="messenger-nav-btn ${messengerView === 'friends' ? 'active' : ''}" onclick="setMessengerView('friends')" title="Друзья"><i class="fas fa-user-friends"></i></button>
-                    <button type="button" class="messenger-nav-btn ${messengerView === 'settings' ? 'active' : ''}" onclick="setMessengerView('settings')" title="Настройки"><i class="fas fa-sliders-h"></i></button>
-                    <button type="button" class="messenger-nav-btn ${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')" title="Профиль"><i class="fas fa-user"></i></button>
-                </div>
             `;
+        }
+
+        function buildAppRailHtml() {
+            const meAvatar = authProfile ? avatarMarkup(authProfile.name || 'Профиль', authProfile.avatar || '', authProfile.initials || '') : '';
+            const navBtn = (view, icon, label) => `
+                <button type="button" class="app-rail-btn ${messengerView === view ? 'active' : ''}" onclick="setMessengerView('${view}')" title="${label}" aria-label="${label}">
+                    <i class="fas ${icon}"></i><span class="app-rail-label">${label}</span>
+                </button>`;
+            return `<nav class="app-rail" aria-label="Навигация">
+                <button type="button" class="app-rail-logo" onclick="setMessengerView('chats')" title="Seych" aria-label="Seych"><i class="fas fa-bolt"></i></button>
+                <div class="app-rail-nav">
+                    ${navBtn('chats', 'fa-comments', 'Чаты')}
+                    ${navBtn('friends', 'fa-user-friends', 'Друзья')}
+                    ${navBtn('calls', 'fa-phone', 'Звонки')}
+                    ${navBtn('settings', 'fa-sliders-h', 'Настройки')}
+                </div>
+                <button type="button" class="app-rail-me ${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')" title="Профиль" aria-label="Профиль">${meAvatar}</button>
+            </nav>`;
         }
 
         function buildMessengerBottomNavHtml(isMobile) {
@@ -1229,6 +1241,7 @@
                 <div class="main-screen main-screen--messenger">
                     <div class="gradient-bg"></div>
                     <div class="messenger-shell ${shellMobile} ${shellWs} ${shellMobileConversation}">
+                        ${isMobile ? '' : buildAppRailHtml()}
                         <aside class="messenger-sidebar">
                             ${buildMessengerSidebarHtml({ isMobile, sidebarVisible, notificationTotal, statusText })}
                         </aside>

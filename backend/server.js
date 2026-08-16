@@ -141,6 +141,20 @@ async function handleHttpRequest(req, res) {
         }
         if (url === '/auth') {
             const result = await authApi.handle(body, { ip: req.socket && req.socket.remoteAddress });
+            if (result && result.json && result.json.success && String(body.action || '') === 'sessions_terminate') {
+                const uid = normalizeAccountId(String(body.appUserId || '').trim());
+                const target = String(body.targetId || '').trim();
+                if (uid && target) {
+                    const set = userSessions.get(uid);
+                    if (set) {
+                        set.forEach((sessionWs) => {
+                            if (String(sessionWs.__deviceId || '').trim() === target) {
+                                safeSend(sessionWs, { type: 'session-terminated', deviceId: target });
+                            }
+                        });
+                    }
+                }
+            }
             res.writeHead(result.status || 200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result.json || {}));
             return;
@@ -2033,6 +2047,7 @@ wss.on('connection', (ws) => {
                         }
                         currentAppUserId = accountId;
                         ws.__appUserId = accountId;
+                        ws.__deviceId = String(data.deviceId || '').trim().slice(0, 64);
                         registerUserSession(accountId, ws);
                         void (async () => {
                             try {

@@ -1,4 +1,4 @@
-п»ї<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -9,15 +9,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=20260816d">
+    <link rel="stylesheet" href="css/style.css?v=20260816g">
 </head>
 <body>
     <div id="app"></div>
     <div id="startupLoader" class="startup-loader" aria-hidden="true">
         <div class="startup-loader-card">
             <img src="/upload/icon.jpg" alt="Seych" class="startup-loader-logo">
-            <div id="startupLoaderTitle" class="startup-loader-title">РћР±РЅРѕРІР»СЏРµРј</div>
-            <div id="startupLoaderMarquee" class="startup-loader-marquee">Р—Р°РіСЂСѓР·РєР°</div>
+            <div id="startupLoaderTitle" class="startup-loader-title">Обновляем</div>
+            <div id="startupLoaderMarquee" class="startup-loader-marquee">Загрузка</div>
             <div class="startup-loader-progress"></div>
         </div>
     </div>
@@ -29,16 +29,16 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js" async defer></script>
 
-    <script src="js/config.js?v=20260816d"></script>
-    <script src="js/state.js?v=20260816d"></script>
-<script src="js/core.js?v=20260816d"></script>
-<script src="js/engine.js?v=20260816d"></script>
-<script src="js/call.js?v=20260816d"></script>
-<script src="js/durak.js?v=20260816d"></script>
-<script src="js/messenger.js?v=20260816d"></script>
-<script src="js/stories.js?v=20260816d"></script>
-<script src="js/auth.js?v=20260816d"></script>
-<script src="js/bootstrap.js?v=20260816d"></script>
+    <script src="js/config.js?v=20260816g"></script>
+    <script src="js/state.js?v=20260816g"></script>
+<script src="js/core.js?v=20260816g"></script>
+<script src="js/engine.js?v=20260816g"></script>
+<script src="js/call.js?v=20260816g"></script>
+<script src="js/durak.js?v=20260816g"></script>
+<script src="js/messenger.js?v=20260816g"></script>
+<script src="js/stories.js?v=20260816g"></script>
+<script src="js/auth.js?v=20260816g"></script>
+<script src="js/bootstrap.js?v=20260816g"></script>
 
 <!-- Story Viewer Modal -->
 <div id="storyViewer" class="story-viewer" onclick="handleStoryViewerClick(event)" oncontextmenu="return handleStoryContextMenu(event)">
@@ -69,7 +69,7 @@
                 <i class="fas fa-eye"></i>
             </button>
             <div id="storyCommentInputWrap" class="story-input-wrapper">
-                <input id="storyReplyInput" class="story-input" placeholder="Р”РѕР±Р°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№..." onkeypress="handleStoryReplyKeypress(event)">
+                <input id="storyReplyInput" class="story-input" placeholder="Добавить комментарий..." onkeypress="handleStoryReplyKeypress(event)">
                 <button id="storyCommentSendBtn" class="story-comment-send" onclick="sendStoryComment()">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -85,7 +85,7 @@
 <div id="storyViewsModal" class="story-views-modal">
     <div class="story-views-content">
         <div class="story-views-header">
-            <div class="story-views-title">РџСЂРѕСЃРјРѕС‚СЂС‹</div>
+            <div class="story-views-title">Просмотры</div>
             <button class="story-views-close" onclick="closeStoryViewsModal()">
                 <i class="fas fa-times"></i>
             </button>

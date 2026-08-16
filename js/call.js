@@ -3854,6 +3854,7 @@
                         }
                     } catch (_) {}
                     if (shouldRenderMessengerUi()) renderMainScreen();
+                    if (typeof applyMessengerChatScrollAnchor === 'function') applyMessengerChatScrollAnchor(data.chatId, data.scrollPos || null);
                     break;
                 case 'messenger-message':
                     if (!data.chatId || !data.message) break;

@@ -306,7 +306,9 @@
                     const readBy = Array.isArray(msg.readBy) ? msg.readBy.map((x) => String(x)) : [];
                     const isRead = !!msg.read || (mine && peerId && readBy.includes(peerId));
                     const checksHtml = mine
-                        ? `<span class="chat-msg-checks ${isRead ? 'read' : ''}"><i class="fas fa-check"></i>${isRead ? '<i class="fas fa-check"></i>' : ''}</span>`
+                        ? isRead
+                            ? `<span class="chat-msg-checks read"><i class="fas fa-check chat-check-back"></i><i class="fas fa-check chat-check-front"></i></span>`
+                            : `<span class="chat-msg-checks"><i class="fas fa-check chat-check-single"></i></span>`
                         : '';
                     const reactionsHtml = renderReactions(msg);
                     const canCtx = !msg.uploading;
@@ -454,15 +456,18 @@
                         clickableAvatar: true
                     })}
                     <div style="display:grid;gap:10px;margin-top:12px;">
-                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                            <div><div class="contact-chat">Username</div><div class="contact-name">@${escapeHtml(ownUsername)}</div></div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-ic"><i class="fas fa-at"></i></span>
+                            <div class="profile-info-body"><div class="profile-info-label">Username</div><div class="profile-info-value">@${escapeHtml(ownUsername)}</div></div>
                             <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(ownUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
                         </div>
-                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                        <div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(messengerProfile.statusText || 'Не указано')}</div></div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-ic"><i class="fas fa-quote-right"></i></span>
+                            <div class="profile-info-body"><div class="profile-info-label">О себе</div><div class="profile-info-value">${escapeHtml(messengerProfile.statusText || 'Не указано')}</div></div>
                         </div>
-                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                            <div><div class="contact-chat">ID</div><div class="contact-name">${escapeHtml(authProfile.appUserId || '')}</div></div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-ic"><i class="fas fa-hashtag"></i></span>
+                            <div class="profile-info-body"><div class="profile-info-label">ID</div><div class="profile-info-value">${escapeHtml(authProfile.appUserId || '')}</div></div>
                             <button type="button" class="contact-btn" onclick="copyAppUserId()" title="Скопировать ID" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
                         </div>
                     </div>
@@ -507,10 +512,14 @@
                     clickableAvatar: true
                 })}
                 <div style="display:grid;gap:10px;margin-top:12px;">
-                    <div class="contact-item" style="justify-content:flex-start;"><div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(profile.statusText || 'Не указано')}</div></div></div>
-                    <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                        <div><div class="contact-chat">Username</div><div class="contact-name">${unameLine}</div></div>
+                    <div class="profile-info-row">
+                        <span class="profile-info-ic"><i class="fas fa-at"></i></span>
+                        <div class="profile-info-body"><div class="profile-info-label">Username</div><div class="profile-info-value">${unameLine}</div></div>
                         <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(effectiveUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <div class="profile-info-row">
+                        <span class="profile-info-ic"><i class="fas fa-quote-right"></i></span>
+                        <div class="profile-info-body"><div class="profile-info-label">О себе</div><div class="profile-info-value">${escapeHtml(profile.statusText || 'Не указано')}</div></div>
                     </div>
                 </div>
                 <div class="profile-actions">${addBtn}${addToGroupBtn}${msgBtn}${callBtn}</div>
@@ -518,21 +527,53 @@
             </div></div>`;
         }
 
+        function buildSettingsRow(icon, title, subtitle, onclick, badge) {
+            return `
+                <button type="button" class="settings-row" onclick="${onclick}">
+                    <span class="settings-row-ic"><i class="fas ${icon}"></i></span>
+                    <span class="settings-row-body">
+                        <span class="settings-row-title">${escapeHtml(title)}</span>
+                        ${subtitle ? `<span class="settings-row-sub">${escapeHtml(subtitle)}</span>` : ''}
+                    </span>
+                    ${badge != null && badge !== '' ? `<span class="settings-row-badge">${escapeHtml(badge)}</span>` : ''}
+                    <i class="fas fa-chevron-right settings-row-chevron"></i>
+                </button>`;
+        }
+
         function buildMessengerViewContent(view) {
             if (view === 'friends') {
-                return `<div class="workspace-scroll" style="align-items:stretch;"><div class="friends-search-wrap"><input id="friendsSearchInput" class="modal-input" placeholder="Поиск по ID, имени или username" autocomplete="off" value="${escapeHtml(friendsSearchValue)}" oninput="onFriendsSearchInput(event)"></div>${renderFriendsTabContent()}</div>`;
+                const incomingCount = (friendsState.incomingRequests || []).length;
+                return `<div class="workspace-scroll friends-section" style="align-items:stretch;padding:0 2px;">
+                    <div class="friends-search-wrap">
+                        <i class="fas fa-search friends-search-ic"></i>
+                        <input id="friendsSearchInput" class="modal-input" placeholder="Поиск по ID, имени или username" autocomplete="off" value="${escapeHtml(friendsSearchValue)}" oninput="onFriendsSearchInput(event)">
+                    </div>
+                    <div class="messenger-friends-tabs">
+                        <button type="button" class="messenger-friends-tab ${friendsActiveTab !== 'requests' ? 'active' : ''}" onclick="setFriendsTab('friends')"><i class="fas fa-user-friends"></i> Друзья</button>
+                        <button type="button" class="messenger-friends-tab ${friendsActiveTab === 'requests' ? 'active' : ''}" onclick="setFriendsTab('requests')"><i class="fas fa-inbox"></i> Заявки${incomingCount ? `<span class="messenger-friends-badge">${incomingCount > 99 ? '99+' : incomingCount}</span>` : ''}</button>
+                    </div>
+                    ${friendsActiveTab === 'requests' ? renderRequestsTabContent() : renderFriendsTabContent()}
+                </div>`;
             }
             if (view === 'notifications') {
                 return renderNotificationsWorkspace();
             }
             if (view === 'settings') {
-                return `<div class="workspace-scroll" style="align-items:stretch;padding:6px 0;">
-                    <div style="font-size:20px;font-weight:700;padding:0 4px 8px;">Настройки</div>
-                    <button type="button" class="blacklist-open-btn" onclick="openPrivacySettingsModal()"><i class="fas fa-user-shield"></i> Приватность</button>
-                    <button type="button" class="blacklist-open-btn" onclick="openAppearanceSettingsModal()"><i class="fas fa-palette"></i> Внешний вид</button>
-                    <button type="button" class="blacklist-open-btn" onclick="openBlacklistModal()"><i class="fas fa-ban"></i> Черный список<span class="bl-count">${(messengerProfile.blacklist || []).length}</span></button>
-                    <button type="button" class="blacklist-open-btn" onclick="showSeychQrScanner()"><i class="fas fa-qrcode"></i> Вход по QR-код</button>
-                    <button type="button" class="blacklist-open-btn" onclick="showSeychSessions()"><i class="fas fa-laptop-house"></i> Сессии и устройства</button>
+                return `<div class="workspace-scroll settings-section" style="align-items:stretch;padding:6px 2px;">
+                    <div class="settings-hero">
+                        <div class="settings-hero-avatar">${avatarMarkup(authProfile.name || 'Пользователь', authProfile.avatar || '', authProfile.initials || '')}</div>
+                        <div class="settings-hero-meta">
+                            <div class="settings-hero-name">${escapeHtml(authProfile.name || 'Профиль')}</div>
+                            <div class="settings-hero-sub">${escapeHtml(String(authProfile?.appUserId || '').slice(0, 24)) || '&nbsp;'}</div>
+                        </div>
+                    </div>
+                    <div class="settings-list">
+                        ${buildSettingsRow('fa-user-shield', 'Приватность', 'Кто может писать, звонить, видеть профиль', 'openPrivacySettingsModal()')}
+                        ${buildSettingsRow('fa-palette', 'Внешний вид', 'Тема, обои, оформление', 'openAppearanceSettingsModal()')}
+                        ${buildSettingsRow('fa-ban', 'Чёрный список', 'Заблокированные аккаунты', 'openBlacklistModal()', (messengerProfile.blacklist || []).length || '')}
+                        ${buildSettingsRow('fa-qrcode', 'Вход по QR-коду', 'Авторизация на другом устройстве', 'showSeychQrScanner()')}
+                        ${buildSettingsRow('fa-laptop-house', 'Сессии и устройства', 'Все активные входы в аккаунт', 'showSeychSessions()')}
+                    </div>
                     <div class="settings-signout-row"><button type="button" class="contact-btn delete settings-signout-btn" onclick="signOutProfile()"><i class="fas fa-sign-out-alt"></i> Выйти из аккаунта</button></div>
                 </div>`;
             }
@@ -541,6 +582,7 @@
                     <div class="calls-header-card">
                         <div class="calls-header-icon" aria-hidden="true"><i class="fas fa-phone-alt"></i></div>
                         <div class="calls-header-title">Звонки</div>
+                        <div class="calls-header-sub">Создавайте комнаты или подключайтесь по ссылке</div>
                     </div>
                     <div class="workspace-empty-cards calls-action-cards">
                         <div class="workspace-empty-card" onclick="closeMessengerModal();createRoom()"><i class="fas fa-video"></i><div>Создать комнату</div></div>
@@ -578,12 +620,14 @@
         }
 
         function closeMessengerSection() {
+            if (typeof saveMessengerChatScroll === 'function') saveMessengerChatScroll();
             messengerViewedProfile = null;
             messengerView = 'chats';
             renderMainScreen();
         }
 
         function closeMessengerModal() {
+            if (typeof saveMessengerChatScroll === 'function') saveMessengerChatScroll();
             messengerViewedProfile = null;
             messengerView = 'chats';
             isChatOpen = false;
@@ -663,6 +707,198 @@
             }).join('');
         }
 
+        function buildMessengerSearchPanelHtml() {
+            const tabs = [
+                { id: 'people', label: 'Люди' },
+                { id: 'chats', label: 'Чаты' },
+                { id: 'messages', label: 'Сообщения' }
+            ];
+            return `
+                <div class="sidebar-search">
+                    <div class="sidebar-search-header">
+                        <i class="fas fa-search sidebar-search-ic"></i>
+                        <input id="messengerSearchInput" class="sidebar-search-input" type="text" placeholder="Поиск по людям, чатам и сообщениям" autocomplete="off" value="${escapeHtml(messengerSearchQuery)}" oninput="onMessengerSearchInput(event)">
+                        <button type="button" class="messenger-search-close" onclick="closeMessengerSearch()" title="Закрыть поиск" aria-label="Закрыть поиск"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="messenger-search-tabs">${tabs
+                        .map(
+                            (t) =>
+                                `<button type="button" class="messenger-search-tab ${messengerSearchActiveTab === t.id ? 'active' : ''}" onclick="setMessengerSearchTab('${t.id}')">${t.label}</button>`
+                        )
+                        .join('')}</div>
+                    <div class="sidebar-search-results" id="messengerSearchResults">${renderMessengerSearchResults()}</div>
+                </div>`;
+        }
+
+        function runMessengerGlobalSearch(query) {
+            const q = String(query || '').trim().toLowerCase();
+            const myId = String(authProfile?.appUserId || '').trim();
+            const people = [];
+            const chats = [];
+            const messages = [];
+            if (q.length >= 1) {
+                const seenPeople = new Set();
+                const pushPeople = (id, name, username, avatar, initials, statusText) => {
+                    id = String(id || '').trim();
+                    if (!id || id === myId || seenPeople.has(id)) return;
+                    seenPeople.add(id);
+                    people.push({ id, name, username, avatar, initials, statusText });
+                };
+                (friendsState.friends || []).forEach((f) => {
+                    const uid = String(f.id || f || '');
+                    const peer = resolvePeerDisplay(uid);
+                    pushPeople(uid, peer?.displayName || peer?.name || f.name || uid, peer?.username || '', peer?.avatar || '', peer?.initials || '', peer?.statusText || '');
+                });
+                (messengerChats || []).forEach((chat) => {
+                    if (isDirectMessengerChat(chat)) {
+                        const pid = chat.peer?.id || '';
+                        const peer = resolvePeerDisplay(pid);
+                        pushPeople(pid, chat.peer?.displayName || chat.peer?.name || peer?.displayName || peer?.name || pid, peer?.username || chat.peer?.username || '', chat.peer?.avatar || '', chat.peer?.initials || '', chat.peer?.statusText || '');
+                    }
+                });
+                const haystack = (str) => String(str || '').trim().toLowerCase();
+                const peopleMatch = people.filter(
+                    (p) => haystack(p.name).includes(q) || haystack(p.username).includes(q.replace(/^@/, '')) || haystack(p.id).includes(q)
+                );
+
+                const chatsMatch = (messengerChats || []).filter((chat) => {
+                    const title = isDirectMessengerChat(chat)
+                        ? chat.peer?.displayName || chat.peer?.name || chat.peer?.id || ''
+                        : chat.peer?.displayName || chat.peer?.name || chat.title || chat.peer?.id || '';
+                    return haystack(title).includes(q) || haystack(chat.id).includes(q);
+                }).map((chat) => ({
+                    id: chat.id,
+                    title: isDirectMessengerChat(chat) ? chat.peer?.displayName || chat.peer?.name || chat.peer?.id || '' : chat.peer?.displayName || chat.peer?.name || chat.title || '',
+                    avatar: chat.peer?.avatar || '',
+                    initials: chat.peer?.initials || '',
+                    lastMessage: chat.lastMessage
+                }));
+
+                const msgResults = [];
+                (messengerMessages || []).forEach((list, chatId) => {
+                    if (!Array.isArray(list)) return;
+                    const chat = (messengerChats || []).find((c) => String(c?.id || '') === String(chatId || ''));
+                    if (!chat) return;
+                    const chatTitle = isDirectMessengerChat(chat) ? chat.peer?.displayName || chat.peer?.name || chat.peer?.id || '' : chat.peer?.displayName || chat.peer?.name || chat.title || '';
+                    const chatAvatar = chat.peer?.avatar || '';
+                    const chatInitials = chat.peer?.initials || '';
+                    list.forEach((m) => {
+                        if (!m || m.deletedAt || String(m.messageKind || '') === 'system') return;
+                        const text = String(m.text || '');
+                        if (!text || !haystack(text).includes(q)) return;
+                        if (msgResults.length >= 60) return;
+                        msgResults.push({
+                            chatId,
+                            chatTitle,
+                            chatAvatar,
+                            chatInitials,
+                            msgId: m.id,
+                            text,
+                            createdAt: m.createdAt,
+                            mine: String(m.fromId || '') === myId
+                        });
+                    });
+                });
+                msgResults.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+                messages.push(...msgResults);
+                return { people: peopleMatch, chats: chatsMatch, messages };
+            }
+            return { people, chats, messages };
+        }
+
+        function renderMessengerSearchResults() {
+            const q = String(messengerSearchQuery || '').trim();
+            if (!q) {
+                return '<div class="sidebar-search-empty"><i class="fas fa-search"></i><p>Введите запрос, чтобы найти людей, чаты и сообщения</p></div>';
+            }
+            const res = runMessengerGlobalSearch(q);
+            const tab = messengerSearchActiveTab;
+            if (tab === 'people') {
+                if (!res.people.length) return '<div class="sidebar-search-empty"><i class="fas fa-user-slash"></i><p>Никого не найдено</p></div>';
+                return res.people.map((p) => `
+                    <div class="search-result-item" onclick="closeMessengerSearch();openMessengerChat('${escapeHtml(p.id)}')">
+                        <div class="search-result-avatar">${avatarMarkup(p.name, p.avatar, p.initials)}</div>
+                        <div class="search-result-meta">
+                            <div class="search-result-title">${escapeHtml(p.name)}</div>
+                            ${p.username ? `<div class="search-result-sub">@${escapeHtml(p.username)}</div>` : ''}
+                        </div>
+                    </div>`).join('');
+            }
+            if (tab === 'chats') {
+                if (!res.chats.length) return '<div class="sidebar-search-empty"><i class="fas fa-comments"></i><p>Чатов не найдено</p></div>';
+                return res.chats.map((c) => `
+                    <div class="search-result-item" onclick="closeMessengerSearch();openMessengerChatById('${escapeHtml(c.id)}')">
+                        <div class="search-result-avatar">${avatarMarkup(c.title, c.avatar, c.initials)}</div>
+                        <div class="search-result-meta">
+                            <div class="search-result-title">${escapeHtml(c.title)}</div>
+                            <div class="search-result-sub">${escapeHtml(String(c.lastMessage?.text || 'Чат'))}</div>
+                        </div>
+                    </div>`).join('');
+            }
+            if (tab === 'messages') {
+                if (!res.messages.length) return '<div class="sidebar-search-empty"><i class="fas fa-envelope-open"></i><p>Сообщений не найдено</p></div>';
+                return res.messages.map((m) => `
+                    <div class="search-result-item" onclick="closeMessengerSearch();openMessengerChatToMessage('${escapeHtml(m.chatId)}','${escapeHtml(m.msgId)}')">
+                        <div class="search-result-avatar">${avatarMarkup(m.chatTitle, m.chatAvatar, m.chatInitials)}</div>
+                        <div class="search-result-meta">
+                            <div class="search-result-title">${escapeHtml(m.chatTitle)}</div>
+                            <div class="search-result-sub">${m.mine ? 'Вы: ' : ''}${escapeHtml(String(m.text).slice(0, 80))}</div>
+                        </div>
+                    </div>`).join('');
+            }
+            return '';
+        }
+
+        function onMessengerSearchInput(event) {
+            messengerSearchQuery = String((event && event.target && event.target.value) || '');
+            const resultsEl = document.getElementById('messengerSearchResults');
+            if (resultsEl) resultsEl.innerHTML = renderMessengerSearchResults();
+        }
+
+        function setMessengerSearchTab(tab) {
+            if (['people', 'chats', 'messages'].includes(tab)) messengerSearchActiveTab = tab;
+            const resultsEl = document.getElementById('messengerSearchResults');
+            if (resultsEl) resultsEl.innerHTML = renderMessengerSearchResults();
+            const tabs = document.querySelectorAll('.messenger-search-tab');
+            tabs.forEach((t) => t.classList.toggle('active', t.getAttribute('onclick') === `setMessengerSearchTab('${tab}')`));
+        }
+
+        function closeMessengerSearch() {
+            messengerSearchOpen = false;
+            messengerSearchQuery = '';
+            messengerSearchActiveTab = 'people';
+            messengerWorkspaceDirty = true;
+            renderMainScreen();
+        }
+
+        function toggleMessengerSearch() {
+            messengerSearchOpen = !messengerSearchOpen;
+            messengerWorkspaceDirty = true;
+            renderMainScreen();
+            if (messengerSearchOpen) {
+                const input = document.getElementById('messengerSearchInput');
+                if (input) {
+                    try {
+                        input.focus();
+                    } catch (_) {}
+                }
+            }
+        }
+
+        function openMessengerSearch() {
+            if (!messengerSearchOpen) {
+                messengerSearchOpen = true;
+                messengerWorkspaceDirty = true;
+                renderMainScreen();
+            }
+            const input = document.getElementById('messengerSearchInput');
+            if (input) {
+                try {
+                    input.focus();
+                } catch (_) {}
+            }
+        }
+
         function buildMessengerSidebarHtml(opts) {
             const isMobile = !!(opts && opts.isMobile);
             const sidebarVisible = !(opts && opts.sidebarVisible === false);
@@ -672,16 +908,23 @@
             const chatItems = buildMessengerChatListHtml();
             return `
                 <div class="sidebar-header">
-                    <span class="sidebar-brand">Seych</span>
-                    <button type="button" class="messenger-nav-btn" onclick="openNotificationsModal()" title="Уведомления" aria-label="Уведомления"><i class="fas fa-bell"></i>${notificationTotal ? `<span class="nav-badge">${notificationTotal > 99 ? '99+' : notificationTotal}</span>` : ''}</button>
-                    ${isMobile && messengerView === 'chats' ? `<button type="button" class="messenger-nav-btn sidebar-compose-btn" onclick="openCreateGroupModal()" title="Создать чат" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                    <span class="sidebar-brand"><span class="sidebar-brand-ico"><i class="fas fa-bolt"></i></span>Seych</span>
+                    <div class="sidebar-header-actions">
+                        <button type="button" class="messenger-nav-btn ${messengerSearchOpen ? 'active' : ''}" onclick="toggleMessengerSearch()" title="Поиск" aria-label="Поиск"><i class="fas fa-search"></i></button>
+                        <button type="button" class="messenger-nav-btn" onclick="openNotificationsModal()" title="Уведомления" aria-label="Уведомления"><i class="fas fa-bell"></i>${notificationTotal ? `<span class="nav-badge">${notificationTotal > 99 ? '99+' : notificationTotal}</span>` : ''}</button>
+                        ${isMobile && messengerView === 'chats' && !messengerSearchOpen ? `<button type="button" class="messenger-nav-btn sidebar-compose-btn" onclick="openCreateGroupModal()" title="Создать чат" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                    </div>
                 </div>
                 <div class="messenger-sidebar-body">
                     <div class="messenger-connection" style="margin-top:0;"><i class="fas fa-circle" style="font-size:9px;margin-right:5px;color:${getMessengerSocketReady() ? '#5cff9a' : '#f4b166'}"></i>${statusText}</div>
-                    <div id="storiesContainer" class="stories-container"></div>
-                    <div class="sidebar-group-calls-host">${sidebarActiveGroupCallsHtml}</div>
-                    <div class="messenger-chat-list">${chatItems}</div>
-                    ${sidebarVisible ? `<button type="button" class="messenger-compose-fab" onclick="openCreateGroupModal()" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                    ${messengerSearchOpen
+                        ? buildMessengerSearchPanelHtml()
+                        : `
+                        <div id="storiesContainer" class="stories-container"></div>
+                        <div class="sidebar-group-calls-host">${sidebarActiveGroupCallsHtml}</div>
+                        <div class="messenger-chat-list">${chatItems}</div>
+                        ${sidebarVisible ? `<button type="button" class="messenger-compose-fab" onclick="openCreateGroupModal()" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                    `}
                 </div>
                 <div class="sidebar-footer-nav">
                     <button type="button" class="messenger-nav-btn ${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')" title="Звонки"><i class="fas fa-phone"></i></button>
@@ -716,7 +959,7 @@
         function preserveFocusedMessengerInputBeforeRender() {
             const ae = document.activeElement;
             if (!ae || !ae.id) return null;
-            if (ae.id !== 'chatComposerInput' && ae.id !== 'friendsSearchInput') return null;
+            if (ae.id !== 'chatComposerInput' && ae.id !== 'friendsSearchInput' && ae.id !== 'messengerSearchInput') return null;
             const el = ae;
             const parent = el.parentNode;
             if (!parent) return null;
@@ -734,6 +977,16 @@
                         fresh.remove();
                     }
                     row.insertBefore(el, row.firstChild);
+                } else if (el.id === 'messengerSearchInput') {
+                    const wrap = document.querySelector('.sidebar-search-header');
+                    if (!wrap) return;
+                    const fresh = wrap.querySelector('#messengerSearchInput');
+                    if (fresh && fresh !== el) {
+                        el.placeholder = fresh.placeholder;
+                        el.disabled = fresh.disabled;
+                        fresh.remove();
+                    }
+                    wrap.insertBefore(el, wrap.querySelector('.messenger-search-close'));
                 } else {
                     const wrap = document.querySelector('.friends-search-wrap');
                     if (!wrap) return;
@@ -781,9 +1034,10 @@
                 shell.className = nextShellClass;
             }
             // Список чатов пересобираем только если он реально изменился — иначе аватары мигают.
+            // Когда открыт поиск — список чатов скрыт панелью поиска, его не трогаем.
             const chatListHtml = buildMessengerChatListHtml();
             const chatListEl = sidebar.querySelector('.messenger-chat-list');
-            if (chatListEl && chatListHtml !== lastChatListHtml) {
+            if (!messengerSearchOpen && chatListEl && chatListHtml !== lastChatListHtml) {
                 chatListEl.innerHTML = chatListHtml;
                 lastChatListHtml = chatListHtml;
             }
@@ -1080,6 +1334,15 @@
         window.refreshNotificationsModalContent = refreshNotificationsModalContent;
         window.markMessengerNotificationsRead = markMessengerNotificationsRead;
         window.markMessengerWorkspaceDirty = markMessengerWorkspaceDirty;
+        window.onMessengerSearchInput = onMessengerSearchInput;
+        window.setMessengerSearchTab = setMessengerSearchTab;
+        window.closeMessengerSearch = closeMessengerSearch;
+        window.toggleMessengerSearch = toggleMessengerSearch;
+        window.openMessengerSearch = openMessengerSearch;
+        window.openMessengerChatToMessage = openMessengerChatToMessage;
+        window.saveMessengerChatScroll = saveMessengerChatScroll;
+        window.applyMessengerChatScrollAnchor = applyMessengerChatScrollAnchor;
+        window.scrollMessengerHistoryToMsgId = scrollMessengerHistoryToMsgId;
         window.openMessengerChat = openMessengerChat;
         window.openChatListContextMenu = openChatListContextMenu;
         window.startChatListHold = startChatListHold;

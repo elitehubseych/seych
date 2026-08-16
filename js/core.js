@@ -504,6 +504,13 @@
             messengerWorkspaceDirty = chatId || true;
         }
 
+        // ==== Поиск в сайдбаре (Люди / Чаты / Сообщения) ====
+        let messengerSearchOpen = false;
+        let messengerSearchQuery = '';
+        let messengerSearchActiveTab = 'people'; // 'people' | 'chats' | 'messages'
+        // Если задан — после загрузки истории чата прыгаем к этому сообщению (результат поиска по сообщениям).
+        let messengerPendingJumpToMsgId = '';
+
         function captureMessengerFocusSnapshot() {
             const el = document.activeElement;
             if (!el || !el.id) return null;

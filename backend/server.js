@@ -2133,6 +2133,10 @@ wss.on('connection', (ws) => {
                                 ...rawMsgs.map((m) => m.fromId).filter(Boolean)
                             );
                             const messages = rawMsgs.map(enrichMessageWithSender);
+                            let scrollPos = null;
+                            try {
+                                scrollPos = await messengerMysql.getChatScroll(currentAppUserId, chat.id);
+                            } catch (_) {}
                             if (chat && chat.kind === 'group') {
                                 const gate = canSendToGroupChat(chat, currentAppUserId);
                                 composeBlocked = !gate.ok;
@@ -2149,8 +2153,27 @@ wss.on('connection', (ws) => {
                                 messages,
                                 composeBlocked,
                                 composeHint,
+                                scrollPos,
                                 chat: chat && chat.kind === 'group' ? serializeGroupChatForClient(chat, currentAppUserId) : null
                             });
+                        })();
+                    }
+                    break;
+                case 'messenger-save-scroll':
+                    {
+                        if (!currentAppUserId) return;
+                        const chatIdScroll = normalizeText(data.chatId || '', 220);
+                        const msgIdScroll = normalizeText(data.msgId || '', 100);
+                        if (!chatIdScroll || !msgIdScroll) return;
+                        const offsetPx = Number(data.offset) || 0;
+                        void (async () => {
+                            try {
+                                await mysqlBoot;
+                            } catch (_) {}
+                            if (!messengerMysql.isEnabled()) return;
+                            try {
+                                await messengerMysql.saveChatScroll(currentAppUserId, chatIdScroll, msgIdScroll, offsetPx);
+                            } catch (_) {}
                         })();
                     }
                     break;

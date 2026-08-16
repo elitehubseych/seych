@@ -293,6 +293,18 @@ async function ensureTables() {
   `);
   await pool.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, last_seen_at DESC)');
 
+  // Позиция прокрутки истории чата (где пользователь остановился в последний раз).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_scrolls (
+      user_id VARCHAR(120) NOT NULL,
+      chat_id VARCHAR(220) NOT NULL,
+      msg_id VARCHAR(100) NOT NULL DEFAULT '',
+      offset_px INT NOT NULL DEFAULT 0,
+      updated_at BIGINT NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, chat_id)
+    )
+  `);
+
   // Indexes for stories
   await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user_time ON stories(user_id, created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories(expires_at)');
@@ -1349,6 +1361,31 @@ function rowToStory(row) {
   };
 }
 
+async function getChatScroll(userId, chatId) {
+  if (!userId || !chatId) return null;
+  try {
+    const { rows } = await pool.query('SELECT msg_id, offset_px FROM chat_scrolls WHERE user_id = $1 AND chat_id = $2 LIMIT 1', [userId, chatId]);
+    const r = rows && rows[0];
+    if (!r || !r.msg_id) return null;
+    return { msgId: r.msg_id, offset: Number(r.offset_px) || 0 };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function saveChatScroll(userId, chatId, msgId, offset) {
+  if (!userId || !chatId) return;
+  try {
+    await pool.query(
+      `INSERT INTO chat_scrolls (user_id, chat_id, msg_id, offset_px, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, chat_id)
+       DO UPDATE SET msg_id = EXCLUDED.msg_id, offset_px = EXCLUDED.offset_px, updated_at = EXCLUDED.updated_at`,
+      [userId, chatId, String(msgId || '').slice(0, 100), Number(offset) || 0, Date.now()]
+    );
+  } catch (_) {}
+}
+
 const initMessengerMysql = initMessengerPostgres;
 
 module.exports = {
@@ -1402,5 +1439,7 @@ module.exports = {
   getUserFriends,
   isFriendshipPair,
   listFriendshipPairs,
-  listFriendsUserRows
+  listFriendsUserRows,
+  getChatScroll,
+  saveChatScroll
 };

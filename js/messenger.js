@@ -224,16 +224,16 @@
             const id = escapeHtml(user?.id || '');
             const rawId = String(user?.id || '').replace(/'/g, "\\'");
             const avatar = avatarMarkup(label, user?.avatar || '', user?.initials);
+            const sub = user?.username ? '@' + escapeHtml(String(user.username).replace(/^@/, '')) : ('ID: ' + id);
+            const online = !!user?.online;
             return `
-                <div class="contact-item" onclick="openMessengerChat('${rawId}')" style="cursor:pointer;">
-                    <div class="participant-info">
-                        <div class="participant-avatar" style="width:36px;height:36px;min-width:36px">${avatar}</div>
-                        <div>
-                            <div class="contact-name">${name}</div>
-                            <div class="contact-chat">ID: ${id}</div>
-                        </div>
+                <div class="friend-item" onclick="openMessengerChat('${rawId}')" style="cursor:pointer;">
+                    <div class="friend-avatar${online ? ' friend-avatar--online' : ''}">${avatar}</div>
+                    <div class="friend-meta">
+                        <div class="friend-name">${name}</div>
+                        <div class="friend-sub">${sub}</div>
                     </div>
-                    <div class="contact-actions" onclick="event.stopPropagation()">${actionsHtml}</div>
+                    <div class="friend-actions" onclick="event.stopPropagation()">${actionsHtml}</div>
                 </div>
             `;
         }
@@ -299,20 +299,20 @@
             }
             incomingCalls.forEach((invite) => {
                 const actions = `
-                    <button class="contact-btn" onclick="replyIncomingCall('${invite.inviteId}','answer')">Ответить</button>
-                    <button class="contact-btn delete" onclick="replyIncomingCall('${invite.inviteId}','decline')">Сбросить</button>
+                    <button class="contact-btn" title="Ответить" onclick="replyIncomingCall('${invite.inviteId}','answer')"><i class="fas fa-phone"></i></button>
+                    <button class="contact-btn delete" title="Сбросить" onclick="replyIncomingCall('${invite.inviteId}','decline')"><i class="fas fa-phone-slash"></i></button>
                 `;
                 html += buildFriendItemRow({ id: invite.fromId, name: invite.fromName, avatar: invite.fromAvatar }, actions);
             });
             incoming.forEach((request) => {
                 const actions = `
-                    <button class="contact-btn" onclick="handleFriendRequest('${request.requestId}','accept')">Принять</button>
-                    <button class="contact-btn delete" onclick="handleFriendRequest('${request.requestId}','decline')">Отклонить</button>
+                    <button class="contact-btn" title="Принять" onclick="handleFriendRequest('${request.requestId}','accept')"><i class="fas fa-check"></i></button>
+                    <button class="contact-btn delete" title="Отклонить" onclick="handleFriendRequest('${request.requestId}','decline')"><i class="fas fa-times"></i></button>
                 `;
                 html += buildFriendItemRow({ id: request.fromId, name: request.name, avatar: request.avatar }, actions);
             });
             outgoing.forEach((request) => {
-                const actions = '<button class="contact-btn secondary">Ожидает ответа</button>';
+                const actions = '<button class="contact-btn secondary" title="Ожидает ответа"><i class="fas fa-clock"></i></button>';
                 html += buildFriendItemRow({ id: request.toId, name: request.name, avatar: request.avatar }, actions);
             });
             html += '</div>';
@@ -1052,13 +1052,134 @@
                 if (messengerUserScrollTimer) clearTimeout(messengerUserScrollTimer);
                 messengerUserScrollTimer = setTimeout(() => {
                     messengerIsUserScrolling = false;
+                    saveMessengerChatScroll();
                     if (messengerRenderPendingAfterScroll && shouldRenderMessengerUi()) {
                         messengerRenderPendingAfterScroll = false;
                         renderMainScreen();
                     }
                 }, 650);
+                // Сохраняем позицию чуть раньше, но не на каждый scroll-событие.
+                if (messengerScrollSaveTimer) clearTimeout(messengerScrollSaveTimer);
+                messengerScrollSaveTimer = setTimeout(saveMessengerChatScroll, 1600);
             }, { passive: true });
         }
+
+        // ==== Позиция прокрутки истории чата (сохранение в БД + восстановление) ====
+        const MESSENGER_SCROLL_STORAGE_KEY = 'seych-messenger-scroll-pos';
+        let messengerScrollPosByChat = new Map();
+        let messengerScrollSaveTimer = null;
+        let messengerLastSavedScrollKey = '';
+
+        function loadStoredMessengerScrolls() {
+            try {
+                const raw = localStorage.getItem(MESSENGER_SCROLL_STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return;
+                parsed.forEach((entry) => {
+                    if (!Array.isArray(entry) || entry.length < 2) return;
+                    const chatId = String(entry[0] || '').trim();
+                    const pos = entry[1] && typeof entry[1] === 'object' ? entry[1] : null;
+                    if (chatId && pos && pos.msgId) messengerScrollPosByChat.set(chatId, pos);
+                });
+            } catch (_) {}
+        }
+
+        function persistMessengerScrolls() {
+            try {
+                localStorage.setItem(MESSENGER_SCROLL_STORAGE_KEY, JSON.stringify(Array.from(messengerScrollPosByChat.entries())));
+            } catch (_) {}
+        }
+
+        function captureMessengerChatScrollAnchor() {
+            const hist = document.querySelector('.chat-history');
+            if (!hist || !messengerActiveChatId) return null;
+            try {
+                const histRect = hist.getBoundingClientRect();
+                let anchorEl = null;
+                for (const el of hist.querySelectorAll('.chat-msg')) {
+                    const r = el.getBoundingClientRect();
+                    if (r.top < histRect.bottom && r.bottom > histRect.top) {
+                        anchorEl = el;
+                        break;
+                    }
+                }
+                if (!anchorEl) return null;
+                const msgId = String(anchorEl.id || '').replace(/^chatMsg-/, '');
+                if (!msgId) return null;
+                const offset = Math.round(histRect.top - anchorEl.getBoundingClientRect().top);
+                return { msgId, offset: Math.max(0, offset) };
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function saveMessengerChatScroll() {
+            if (messengerView !== 'chats' || !messengerActiveChatId) return;
+            const anchor = captureMessengerChatScrollAnchor();
+            if (!anchor) return;
+            const chatId = messengerActiveChatId;
+            messengerScrollPosByChat.set(chatId, anchor);
+            persistMessengerScrolls();
+            const key = `${chatId}:${anchor.msgId}:${anchor.offset}`;
+            if (key === messengerLastSavedScrollKey) return;
+            messengerLastSavedScrollKey = key;
+            sendMessengerEvent({ type: 'messenger-save-scroll', chatId, msgId: anchor.msgId, offset: anchor.offset });
+        }
+
+        function scrollMessengerHistoryToMsgId(msgId, offset) {
+            const hist = document.querySelector('.chat-history');
+            if (!hist || !msgId) return false;
+            try {
+                const el = document.getElementById(`chatMsg-${messengerSafeId(msgId)}`);
+                if (!el) return false;
+                const elTopInContent = el.getBoundingClientRect().top - hist.getBoundingClientRect().top + hist.scrollTop;
+                hist.scrollTop = Math.max(0, Math.round(elTopInContent - Number(offset || 0)));
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function applyMessengerChatScrollAnchor(chatId, serverPos) {
+            if (!chatId || messengerView !== 'chats' || String(messengerActiveChatId || '') !== String(chatId)) return;
+            // Если открыли чат по результату поиска — сначала прыгаем к найденному сообщению.
+            if (messengerPendingJumpToMsgId) {
+                const target = messengerPendingJumpToMsgId;
+                messengerPendingJumpToMsgId = '';
+                messengerShouldAutoScroll = false;
+                const applied = scrollMessengerHistoryToMsgId(target, 0);
+                if (applied) {
+                    scrollAndHighlightMessengerMessage(target);
+                    return;
+                }
+            }
+            const list = resolveChatMessages(chatId);
+            const unread = getMessengerUnreadForChat(chatId);
+            if (unread > 0 && list.length) {
+                // Останавливаемся на первом новом (непрочитанном) сообщении.
+                const firstUnreadIndex = Math.max(0, list.length - unread);
+                const target = list[firstUnreadIndex];
+                messengerShouldAutoScroll = false;
+                scrollMessengerHistoryToMsgId(target && target.id, 4);
+                return;
+            }
+            const saved = (serverPos && serverPos.msgId ? serverPos : null) || messengerScrollPosByChat.get(String(chatId)) || null;
+            if (saved && saved.msgId) {
+                messengerShouldAutoScroll = false;
+                scrollMessengerHistoryToMsgId(saved.msgId, saved.offset || 0);
+                return;
+            }
+            messengerShouldAutoScroll = true;
+        }
+
+        loadStoredMessengerScrolls();
+        try {
+            window.addEventListener('pagehide', () => saveMessengerChatScroll());
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) saveMessengerChatScroll();
+            });
+        } catch (_) {}
         function startMessageSwipeStart(event) {
             try {
                 const tgt = event?.target;
@@ -1311,6 +1432,7 @@
         }
 
         function openMessengerChat(peerId) {
+            saveMessengerChatScroll();
             const peer = String(peerId || '').trim();
             if (!peer || !authProfile?.appUserId) return;
             messengerShouldAutoScroll = true;
@@ -1360,6 +1482,7 @@
         }
 
         function openMessengerChatById(chatId) {
+            saveMessengerChatScroll();
             const chat = findMessengerChatById(chatId);
             if (!chat) return;
             if (isDirectMessengerChat(chat)) {
@@ -1390,6 +1513,11 @@
             sendMessengerEvent({ type: 'messenger-open-chat', chatId: messengerActiveChatId });
             markMessengerWorkspaceDirty(messengerActiveChatId);
             renderMainScreen();
+        }
+
+        function openMessengerChatToMessage(chatId, msgId) {
+            messengerPendingJumpToMsgId = String(msgId || '').trim();
+            openMessengerChatById(chatId);
         }
 
         function buildNotificationsListHtml() {
@@ -1464,7 +1592,17 @@
         }
 
         function renderNotificationsWorkspace() {
-            return `<div class="workspace-scroll" style="padding:8px 6px;">${buildNotificationsListHtml()}</div>`;
+            return `<div class="workspace-scroll notif-workspace" style="padding:8px 2px;">
+                <div class="notif-workspace-header">
+                    <span class="notif-workspace-ic"><i class="fas fa-bell"></i></span>
+                    <span class="notif-workspace-meta">
+                        <span class="notif-workspace-title">Уведомления</span>
+                        <span class="notif-workspace-sub">Реакции, упоминания и события чатов</span>
+                    </span>
+                    <button type="button" class="notif-workspace-clear" onclick="markMessengerNotificationsRead(); renderMainScreen();" ${getMessengerNotificationUnreadTotal ? (getMessengerNotificationUnreadTotal() ? '' : 'style="display:none"') : 'style="display:none"'}>Прочитать все</button>
+                </div>
+                ${buildNotificationsListHtml()}
+            </div>`;
         }
 
         let notificationsModalOpen = false;
@@ -2649,6 +2787,7 @@
         }
 
         function closeMobileChatView() {
+            saveMessengerChatScroll();
             isChatOpen = false;
             messengerActiveChatId = '';
             messengerActivePeerId = '';

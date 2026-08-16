@@ -630,8 +630,6 @@ function canNeighborTossDuringDefend(game, pid) {
   const defPid = game.players[game.defenderIndex];
   if (pid === defPid) return false;
   if (!getDoneEligiblePids(game).includes(pid)) return false;
-  const block = b.tossBlockPid;
-  if (block && block === pid) return false;
   syncMaxTableCardsFromDefenderHand(game);
   return maxTossAllowed(game) > 0;
 }
@@ -656,10 +654,9 @@ function applyTossPlay(game, pid, cardIds, fromTakeToss) {
     }
     removed.push(cid);
   }
-  const allNeighbors = defenderNeighborPids(game);
-  // Blokiruem tol'ko esli vsego odin sosed (igra 2kh igrokov)
-  // Inache oba soseda mogut podkinut' karty
-  b.tossBlockPid = allNeighbors.length === 1 ? allNeighbors[0] : null;
+  // Ne blokiruem podkiduvanie: v dvukha igrokakh atakuyushchiy — edinstvennyy sosed,
+  // no limit kontrolyaetsya maxTossAllowed/maxAttackCards.
+  b.tossBlockPid = null;
   for (const cid of cardIds) {
     b.table.push({
       attack: cid,
@@ -981,6 +978,12 @@ function exportGamePublic(game, viewerId) {
   if (viewerId && game.hands.has(viewerId)) {
     out.myHand = [...(game.hands.get(viewerId) || [])];
   }
+  if (game.phase === 'ended') {
+    out.endedHands = {};
+    for (const pid of game.players) {
+      out.endedHands[pid] = [...(game.hands.get(pid) || [])];
+    }
+  }
   return out;
 }
 
@@ -1026,6 +1029,20 @@ function tryStartGame(game, pid, force, canForceStart) {
   if (game.players.length < 2) return { ok: false, error: 'Нужно минимум 2 игрока' };
   if (force && !canForceStart) return { ok: false, error: 'Нет прав на принудительный старт' };
   return dealInitial(game);
+}
+
+/** Реванш после завершения: та же комната, те же игроки, новая раздача. */
+function rematch(game) {
+  if (game.phase !== 'ended') return { ok: false, error: 'Игра ещё не завершена' };
+  if (game.players.length < 2) return { ok: false, error: 'Нужно минимум 2 игрока' };
+  const keepPlayers = [...game.players];
+  const keepNames = { ...game.playerNames };
+  const res = dealInitial(game);
+  if (res.ok) {
+    game.players = keepPlayers;
+    game.playerNames = keepNames;
+  }
+  return res;
 }
 
 function cancelLobby(game, pid, isRoomOwner, isAdmin) {
@@ -1418,6 +1435,7 @@ module.exports = {
   lobbyJoin,
   lobbyLeave,
   tryStartGame,
+  rematch,
   cancelLobby,
   endGameByModerator,
   playingLeave,

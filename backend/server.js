@@ -3950,6 +3950,7 @@ wss.on('connection', (ws) => {
                 case 'durak-leave':
                 case 'durak-cancel':
                 case 'durak-start':
+                case 'durak-rematch':
                 case 'durak-action':
                 case 'durak-end':
                     {
@@ -4009,6 +4010,17 @@ wss.on('connection', (ws) => {
                             const force = !!data.force;
                             const canForceStart = mod || senderId === g.initiatorId;
                             const r = durakEngine.tryStartGame(g, senderId, force, canForceStart);
+                            if (r.ok) {
+                                broadcastDurak(room);
+                                broadcastRoomState(room);
+                            } else if (r.error) {
+                                safeSend(ws, { type: 'durak-error', message: r.error });
+                            }
+                            return;
+                        }
+
+                        if (data.type === 'durak-rematch') {
+                            const r = durakEngine.rematch(g);
                             if (r.ok) {
                                 broadcastDurak(room);
                                 broadcastRoomState(room);

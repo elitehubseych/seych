@@ -912,7 +912,10 @@
                     dismissToast(toast);
                 }, 3200);
                 while (stack.children.length > 4) {
-                    dismissToast(stack.firstElementChild);
+                    const oldest = stack.firstElementChild;
+                    if (!oldest) break;
+                    if (!oldest.__hiding) dismissToast(oldest);
+                    if (oldest.__hiding && oldest.parentNode) oldest.parentNode.removeChild(oldest);
                 }
             } catch (_) {}
         }

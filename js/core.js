@@ -283,6 +283,7 @@
         function markMessengerNotificationsRead() {
             messengerNotificationUnreadIds.clear();
             persistMessengerNotifications();
+            if (typeof refreshNotificationsModalContent === 'function') refreshNotificationsModalContent();
         }
 
         function getMessengerNotificationChatMeta(chatId) {
@@ -331,9 +332,11 @@
                 messengerNotificationUnreadIds.add(id);
             }
             persistMessengerNotifications();
+            if (typeof refreshNotificationsModalContent === 'function') refreshNotificationsModalContent();
         }
 
         function openMessengerNotification(notificationId) {
+            if (typeof closeNotificationsModal === 'function') closeNotificationsModal();
             const id = String(notificationId || '').trim();
             if (!id) return;
             const item = (messengerNotifications || []).find((entry) => String(entry?.id || '') === id);
@@ -493,6 +496,13 @@
         let friendsSearchDebounceTimer = null;
         let lastComposerTypingEmit = 0;
         let messengerCreateGroupModalOpen = false;
+        // Контент открытого чата меняется только тогда, когда это явно отметили.
+        // Фоновые события (присутствие, бейджи, соединение) НЕ перерисовывают историю/композер.
+        let messengerWorkspaceDirty = true;
+
+        function markMessengerWorkspaceDirty(chatId) {
+            messengerWorkspaceDirty = chatId || true;
+        }
 
         function captureMessengerFocusSnapshot() {
             const el = document.activeElement;

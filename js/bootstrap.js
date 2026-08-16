@@ -399,7 +399,7 @@
                             <div class="messenger-avatar" onclick="${isGroupMessengerChat(activeChat) ? `openGroupProfileModal('${escapeHtml(activeChat.id || '')}')` : `openUserProfile('${escapeHtml(activeChat.peer?.id || '')}')`}" style="cursor:pointer;">${avatarMarkup(activeChatTitle, activeChat.peer?.avatar || activeChat.group?.avatar || '', String(activeChat.peer?.initials || ''))}</div>
                             <div>
                                 <div style="font-weight:700;">${escapeHtml(activeChatTitle)}</div>
-                                <div style="font-size:12px;opacity:.8;">${escapeHtml(isGroupMessengerChat(activeChat) ? getGroupChatStatusText(activeChat) : statusText)}</div>
+                                <div id="chatTopbarStatus" style="font-size:12px;opacity:.8;">${escapeHtml(isGroupMessengerChat(activeChat) ? getGroupChatStatusText(activeChat) : statusText)}</div>
                             </div>
                         </div>
                         <div style="display:flex;gap:8px;">
@@ -433,10 +433,421 @@
             `;
         }
 
+        function buildProfileViewContent() {
+            const own = !messengerViewedProfile;
+            if (own) {
+                const storiesHtml = buildProfileStoriesSection({
+                    userId: authProfile?.appUserId || '',
+                    title: 'Мои истории',
+                    own: true
+                });
+                const ownUsername = ensureGeneratedMessengerUsername(messengerProfile.username || authProfile.vkUsername || '', authProfile?.appUserId || appUserId);
+                return `<div class="workspace-scroll"><div class="profile-card" style="max-width:580px;width:100%;margin:6px 0;">
+                    ${renderProfileHeroCard({
+                        userId: authProfile?.appUserId || '',
+                        displayName: authProfile.name || authProfile.appUserId || '',
+                        avatar: authProfile.avatar || '',
+                        coverUrl: authProfile.coverUrl || '',
+                        initials: authProfile.initials || '',
+                        username: ownUsername,
+                        subtitle: messengerProfile.statusText || 'Без статуса',
+                        clickableAvatar: true
+                    })}
+                    <div style="display:grid;gap:10px;margin-top:12px;">
+                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
+                            <div><div class="contact-chat">Username</div><div class="contact-name">@${escapeHtml(ownUsername)}</div></div>
+                            <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(ownUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
+                        </div>
+                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
+                        <div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(messengerProfile.statusText || 'Не указано')}</div></div>
+                        </div>
+                        <div class="contact-item" style="justify-content:space-between;gap:12px;">
+                            <div><div class="contact-chat">ID</div><div class="contact-name">${escapeHtml(authProfile.appUserId || '')}</div></div>
+                            <button type="button" class="contact-btn" onclick="copyAppUserId()" title="Скопировать ID" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
+                        </div>
+                    </div>
+                    <div class="profile-actions"><button type="button" class="contact-btn" onclick="openProfileEditModal()" title="Редактировать"><i class="fas fa-pen"></i></button><button type="button" class="contact-btn" onclick="setMessengerView('settings')" title="Настройки"><i class="fas fa-sliders-h"></i></button></div>
+                    ${storiesHtml}
+                </div></div>`;
+            }
+            const view = messengerViewedProfile || {};
+            const profile = view.profile || {};
+            if (!view.ok && view.reason === 'private') {
+                return `<div class="workspace-scroll"><div class="profile-card" style="max-width:560px;margin:6px 0;"><div class="profile-avatar"><i class="fas fa-gavel"></i></div><div class="profile-name">Профиль закрыт</div><div class="messenger-connection">Доступ к анкете ограничен настройками приватности.</div></div></div>`;
+            }
+            if (!view.ok && view.reason === 'blocked') {
+                return `<div class="workspace-scroll"><div class="profile-card" style="max-width:560px;margin:6px 0;"><div class="profile-avatar">${profile.avatar ? `<img src="${escapeHtml(profile.avatar)}" alt="" referrerpolicy="no-referrer">` : `<i class="fas fa-ban"></i>`}</div><div class="profile-name">${escapeHtml(profile.name || profile.id || '')}</div><div class="messenger-connection">Этот аккаунт ограничил с вами общение.</div><div class="messenger-connection" style="opacity:.85;">${escapeHtml(profile.statusText || '')}</div></div></div>`;
+            }
+            const pid = String(profile.id || view.targetUserId || '').trim();
+            const isSelf = !!pid && String(authProfile?.appUserId || '') === pid;
+            const isFriend = !isSelf && (friendsState.friends || []).some((f) => String(f.id) === pid);
+            const dispName = profile.displayName || profile.name || pid || '';
+            const avLetter = profile.initials || (dispName.trim().split(/\s+/).filter(Boolean).map((p) => p.charAt(0)).join('').slice(0, 2).toUpperCase() || pid.slice(0, 2).toUpperCase());
+            const effectiveUsername = ensureGeneratedMessengerUsername(profile.username || '', pid);
+            const unameLine = `@${escapeHtml(effectiveUsername)}`;
+            const addBtn = !isSelf && !isFriend ? `<button class="contact-btn" title="Добавить" onclick="sendFriendRequest('${escapeHtml(pid)}')"><i class="fas fa-user-plus"></i></button>` : '';
+            const canAddToChats = !isSelf && canCurrentUserAddProfileToChats(view, isFriend);
+            const addToGroupBtn = canAddToChats ? `<button class="contact-btn" title="Добавить в чат" onclick="openAddUserToGroupModal('${escapeHtml(pid)}')"><i class="fas fa-comments"></i></button>` : '';
+            const msgBtn = !isSelf ? `<button class="contact-btn" title="Написать" onclick="openMessengerChat('${escapeHtml(pid)}')"><i class="fas fa-paper-plane"></i></button>` : '';
+            const callBtn = !isSelf ? `<button class="contact-btn" title="Позвонить" onclick="callFriend('${escapeHtml(pid)}')"><i class="fas fa-phone"></i></button>` : '';
+            const storiesHtml = buildProfileStoriesSection({
+                userId: pid,
+                title: 'Публикации',
+                own: false
+            });
+            return `<div class="workspace-scroll"><div class="profile-card" style="max-width:580px;width:100%;margin:6px 0;">
+                ${renderProfileHeroCard({
+                    userId: pid,
+                    displayName: dispName,
+                    avatar: profile.avatar || '',
+                    coverUrl: profile.coverUrl || '',
+                    initials: avLetter,
+                    username: effectiveUsername,
+                    subtitle: profile.statusText || '',
+                    clickableAvatar: true
+                })}
+                <div style="display:grid;gap:10px;margin-top:12px;">
+                    <div class="contact-item" style="justify-content:flex-start;"><div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(profile.statusText || 'Не указано')}</div></div></div>
+                    <div class="contact-item" style="justify-content:space-between;gap:12px;">
+                        <div><div class="contact-chat">Username</div><div class="contact-name">${unameLine}</div></div>
+                        <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(effectiveUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
+                    </div>
+                </div>
+                <div class="profile-actions">${addBtn}${addToGroupBtn}${msgBtn}${callBtn}</div>
+                ${storiesHtml}
+            </div></div>`;
+        }
+
+        function buildMessengerViewContent(view) {
+            if (view === 'friends') {
+                return `<div class="workspace-scroll" style="align-items:stretch;"><div class="friends-search-wrap"><input id="friendsSearchInput" class="modal-input" placeholder="Поиск по ID, имени или username" autocomplete="off" value="${escapeHtml(friendsSearchValue)}" oninput="onFriendsSearchInput(event)"></div>${renderFriendsTabContent()}</div>`;
+            }
+            if (view === 'notifications') {
+                return renderNotificationsWorkspace();
+            }
+            if (view === 'settings') {
+                return `<div class="workspace-scroll" style="align-items:stretch;padding:6px 0;">
+                    <div style="font-size:20px;font-weight:700;padding:0 4px 8px;">Настройки</div>
+                    <button type="button" class="blacklist-open-btn" onclick="openPrivacySettingsModal()"><i class="fas fa-user-shield"></i> Приватность</button>
+                    <button type="button" class="blacklist-open-btn" onclick="openAppearanceSettingsModal()"><i class="fas fa-palette"></i> Внешний вид</button>
+                    <button type="button" class="blacklist-open-btn" onclick="openBlacklistModal()"><i class="fas fa-ban"></i> Черный список<span class="bl-count">${(messengerProfile.blacklist || []).length}</span></button>
+                    <button type="button" class="blacklist-open-btn" onclick="showSeychQrScanner()"><i class="fas fa-qrcode"></i> Вход по QR-код</button>
+                    <button type="button" class="blacklist-open-btn" onclick="showSeychSessions()"><i class="fas fa-laptop-house"></i> Сессии и устройства</button>
+                    <div class="settings-signout-row"><button type="button" class="contact-btn delete settings-signout-btn" onclick="signOutProfile()"><i class="fas fa-sign-out-alt"></i> Выйти из аккаунта</button></div>
+                </div>`;
+            }
+            if (view === 'calls') {
+                return `<div class="calls-workspace">
+                    <div class="calls-header-card">
+                        <div class="calls-header-icon" aria-hidden="true"><i class="fas fa-phone-alt"></i></div>
+                        <div class="calls-header-title">Звонки</div>
+                    </div>
+                    <div class="workspace-empty-cards calls-action-cards">
+                        <div class="workspace-empty-card" onclick="closeMessengerModal();createRoom()"><i class="fas fa-video"></i><div>Создать комнату</div></div>
+                        <div class="workspace-empty-card" onclick="closeMessengerModal();showJoinModal()"><i class="fas fa-link"></i><div>Подключиться</div></div>
+                    </div>
+                </div>`;
+            }
+            if (view === 'profile') {
+                return buildProfileViewContent();
+            }
+            return '';
+        }
+
+        function buildMessengerSectionTitle(view) {
+            if (view === 'friends') return 'Друзья';
+            if (view === 'calls') return 'Звонки';
+            if (view === 'settings') return 'Настройки';
+            if (view === 'notifications') return 'Уведомления';
+            if (view === 'profile') return (messengerViewedProfile && messengerViewedProfile.profile && (messengerViewedProfile.profile.displayName || messengerViewedProfile.profile.name)) || 'Профиль';
+            return 'Мессенджер';
+        }
+
+        function renderMainWorkspace() {
+            if (messengerView === 'chats') {
+                return renderMessengerWorkspace();
+            }
+            const content = buildMessengerViewContent(messengerView);
+            return `<div class="messenger-section">
+                <div class="messenger-section-header">
+                    <button type="button" class="messenger-section-back" onclick="closeMessengerSection()" aria-label="Назад" title="Назад"><i class="fas fa-arrow-left"></i></button>
+                    <div class="messenger-section-title">${escapeHtml(buildMessengerSectionTitle(messengerView))}</div>
+                </div>
+                <div class="messenger-section-body">${content}</div>
+            </div>`;
+        }
+
+        function closeMessengerSection() {
+            messengerViewedProfile = null;
+            messengerView = 'chats';
+            renderMainScreen();
+        }
+
+        function closeMessengerModal() {
+            messengerViewedProfile = null;
+            messengerView = 'chats';
+            isChatOpen = false;
+            renderMainScreen();
+        }
+
+        let messengerSectionSigCache = '';
+
+        function computeMessengerSectionSig() {
+            const v = messengerView;
+            if (v === 'profile') {
+                const pv = messengerViewedProfile || {};
+                const p = pv.profile || {};
+                const own = !pv.targetUserId && !pv.userId;
+                const id = own ? String(authProfile?.appUserId || '') : String(p.id || pv.targetUserId || pv.userId || '');
+                return `profile:${id}:${own ? 'own' : (pv.ok ? 'loaded' : 'pending')}:${String(p.displayName || p.name || '')}:${String(p.statusText || '')}`;
+            }
+            if (v === 'friends') {
+                const friends = (friendsState.friends || []).map((f) => f.id || f).join(',');
+                const inc = (friendsState.incomingRequests || []).length;
+                return `friends:${friendsActiveTab}:${friends}:${inc}:${(friendsSearchResults || []).length}:${(friendsSearchResults || []).map((r) => r.id || '').join(',')}`;
+            }
+            if (v === 'notifications') {
+                return `notif:${(messengerNotifications || []).map((n) => n.id || '').join(',')}:${messengerNotificationUnreadIds.size}`;
+            }
+            if (v === 'settings') return `settings:${(messengerProfile.blacklist || []).length}`;
+            if (v === 'calls') return 'calls';
+            return v;
+        }
+
+        let lastChatListHtml = '';
+
+        function buildMessengerChatListHtml() {
+            if (!messengerChats.length) {
+                return '<div class="chats-empty-card"><i class="fas fa-comments"></i><p>Чатов пока нет</p></div>';
+            }
+            const myId = String(authProfile?.appUserId || '').trim();
+            return messengerChats.map((chat) => {
+                const lm = chat.lastMessage;
+                let preview = '';
+                const kind = String(lm?.messageKind || '');
+                if (!lm) {
+                    preview = 'История очищена';
+                } else {
+                    const lmText = String(lm?.text || '');
+                    const isVoiceRec = lm?.messageKind === 'voice' && lmText === 'Голосовое сообщение';
+                    const isMusic = lm?.messageKind === 'voice' && !!lmText && lmText !== 'Голосовое сообщение';
+                    if (isVoiceRec) preview = 'Голосовое сообщение';
+                    else if (isMusic) preview = lmText;
+                    else preview = lmText || 'История очищена';
+                }
+                let finalPreview = kind === 'system' ? messengerPlainTextPreview(preview) : preview;
+                if (lm && kind !== 'system') {
+                    const fromId = String(lm?.fromId || '').trim();
+                    if (fromId && fromId === myId) {
+                        finalPreview = `Вы: ${preview}`;
+                    } else if (fromId && isGroupMessengerChat(chat)) {
+                        const senderName =
+                            getGroupParticipantDisplayName(chat, fromId)
+                            || resolvePeerDisplay(fromId)?.displayName
+                            || resolvePeerDisplay(fromId)?.name
+                            || fromId;
+                        finalPreview = `${senderName}: ${preview}`;
+                    }
+                }
+                const pdn = chat.peer?.displayName || chat.peer?.name || chat.peer?.id || '';
+                const unread = getMessengerUnreadForChat(chat.id);
+                return `
+                    <div class="messenger-chat-item ${chat.id === messengerActiveChatId ? 'active' : ''}" onclick="openMessengerChatById('${escapeHtml(chat.id)}')" oncontextmenu="openChatListContextMenu(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchstart="startChatListHold(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchend="cancelChatListHold()" ontouchcancel="cancelChatListHold()">
+                        ${unread ? `<div class="messenger-unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
+                        <div class="messenger-avatar">${avatarMarkup(pdn, chat.peer?.avatar || '', chat.peer?.initials)}</div>
+                        <div class="messenger-chat-meta">
+                            <div class="messenger-chat-title">${renderMaybeMarqueeText(pdn, 10, 'messenger-chat-title-text')}</div>
+                            <div class="messenger-chat-preview">${escapeHtml(finalPreview)}</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function buildMessengerSidebarHtml(opts) {
+            const isMobile = !!(opts && opts.isMobile);
+            const sidebarVisible = !(opts && opts.sidebarVisible === false);
+            const notificationTotal = Number((opts && opts.notificationTotal) || 0);
+            const statusText = String((opts && opts.statusText) || 'Online');
+            const sidebarActiveGroupCallsHtml = sidebarVisible ? renderGlobalActiveGroupCallWidgets() : '';
+            const chatItems = buildMessengerChatListHtml();
+            return `
+                <div class="sidebar-header">
+                    <span class="sidebar-brand">Seych</span>
+                    <button type="button" class="messenger-nav-btn" onclick="openNotificationsModal()" title="Уведомления" aria-label="Уведомления"><i class="fas fa-bell"></i>${notificationTotal ? `<span class="nav-badge">${notificationTotal > 99 ? '99+' : notificationTotal}</span>` : ''}</button>
+                    ${isMobile && messengerView === 'chats' ? `<button type="button" class="messenger-nav-btn sidebar-compose-btn" onclick="openCreateGroupModal()" title="Создать чат" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                </div>
+                <div class="messenger-sidebar-body">
+                    <div class="messenger-connection" style="margin-top:0;"><i class="fas fa-circle" style="font-size:9px;margin-right:5px;color:${getMessengerSocketReady() ? '#5cff9a' : '#f4b166'}"></i>${statusText}</div>
+                    <div id="storiesContainer" class="stories-container"></div>
+                    <div class="sidebar-group-calls-host">${sidebarActiveGroupCallsHtml}</div>
+                    <div class="messenger-chat-list">${chatItems}</div>
+                    ${sidebarVisible ? `<button type="button" class="messenger-compose-fab" onclick="openCreateGroupModal()" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
+                </div>
+                <div class="sidebar-footer-nav">
+                    <button type="button" class="messenger-nav-btn ${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')" title="Звонки"><i class="fas fa-phone"></i></button>
+                    <button type="button" class="messenger-nav-btn ${messengerView === 'friends' ? 'active' : ''}" onclick="setMessengerView('friends')" title="Друзья"><i class="fas fa-user-friends"></i></button>
+                    <button type="button" class="messenger-nav-btn ${messengerView === 'settings' ? 'active' : ''}" onclick="setMessengerView('settings')" title="Настройки"><i class="fas fa-sliders-h"></i></button>
+                    <button type="button" class="messenger-nav-btn ${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')" title="Профиль"><i class="fas fa-user"></i></button>
+                </div>
+            `;
+        }
+
+        function buildMessengerBottomNavHtml(isMobile) {
+            if (!isMobile) return '';
+            return `<nav class="messenger-bottom-nav" aria-label="Навигация">
+                <button type="button" class="${messengerView === 'chats' && !isChatOpen ? 'active' : ''}" onclick="setMessengerView('chats')"><i class="fas fa-comments"></i>Чаты</button>
+                <button type="button" class="${messengerView === 'friends' ? 'active' : ''}" onclick="setMessengerView('friends')"><i class="fas fa-user-friends"></i>Друзья</button>
+                <button type="button" class="${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')"><i class="fas fa-phone"></i>Звонки</button>
+                <button type="button" class="${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')"><i class="fas fa-user"></i>Профиль</button>
+            </nav>`;
+        }
+
+        function patchChatTopbarStatus() {
+            if (messengerView !== 'chats') return;
+            const statusEl = document.getElementById('chatTopbarStatus');
+            if (!statusEl) return;
+            const activeChat = resolveActiveMessengerChat();
+            if (!activeChat) return;
+            const peerTypingState = getMessengerPeerActivityState(messengerActivePeerId);
+            const statusText = formatPeerStatusLine(activeChat.peer, peerTypingState);
+            statusEl.textContent = escapeHtml(isGroupMessengerChat(activeChat) ? getGroupChatStatusText(activeChat) : statusText);
+        }
+
+        function preserveFocusedMessengerInputBeforeRender() {
+            const ae = document.activeElement;
+            if (!ae || !ae.id) return null;
+            if (ae.id !== 'chatComposerInput' && ae.id !== 'friendsSearchInput') return null;
+            const el = ae;
+            const parent = el.parentNode;
+            if (!parent) return null;
+            parent.removeChild(el);
+            return function reattach() {
+                if (el.id === 'chatComposerInput') {
+                    const row = document.querySelector('.chat-composer-row');
+                    if (!row) return;
+                    const fresh = row.querySelector('#chatComposerInput');
+                    if (fresh && fresh !== el) {
+                        el.placeholder = fresh.placeholder;
+                        el.disabled = fresh.disabled;
+                        if (fresh.maxLength >= 0) el.maxLength = fresh.maxLength;
+                        el.style.cssText = fresh.getAttribute('style') || '';
+                        fresh.remove();
+                    }
+                    row.insertBefore(el, row.firstChild);
+                } else {
+                    const wrap = document.querySelector('.friends-search-wrap');
+                    if (!wrap) return;
+                    const fresh = wrap.querySelector('#friendsSearchInput');
+                    if (fresh && fresh !== el) {
+                        el.placeholder = fresh.placeholder;
+                        el.disabled = fresh.disabled;
+                        fresh.remove();
+                    }
+                    wrap.insertBefore(el, wrap.firstChild);
+                }
+                try {
+                    el.focus();
+                } catch (_) {}
+                let sel = null;
+                try {
+                    sel = { s: el.selectionStart, e: el.selectionEnd };
+                } catch (_) {}
+                if (sel && typeof el.setSelectionRange === 'function') {
+                    try {
+                        el.setSelectionRange(sel.s, sel.e);
+                    } catch (_) {}
+                }
+            };
+        }
+
+        function patchMessengerShell() {
+            const shell = document.querySelector('.messenger-shell');
+            const sidebar = document.querySelector('.messenger-sidebar');
+            const mainScreen = document.querySelector('.main-screen');
+            if (!shell || !sidebar || !mainScreen) {
+                messengerWorkspaceDirty = true;
+                renderMainScreen();
+                return;
+            }
+            const isMobile = isMobileLayout();
+            const statusText = getMessengerSocketReady() ? 'Online' : 'Соединение...';
+            const nextShellClass = [
+                'messenger-shell',
+                isMobile ? 'messenger-shell--mobile' : '',
+                messengerMobileWorkspaceOpen() ? 'messenger-shell--workspace' : '',
+                isMobile && isChatOpen && messengerView === 'chats' ? 'messenger-shell--mobile-conversation' : ''
+            ].filter(Boolean).join(' ');
+            if (shell.className !== nextShellClass) {
+                shell.className = nextShellClass;
+            }
+            // Список чатов пересобираем только если он реально изменился — иначе аватары мигают.
+            const chatListHtml = buildMessengerChatListHtml();
+            const chatListEl = sidebar.querySelector('.messenger-chat-list');
+            if (chatListEl && chatListHtml !== lastChatListHtml) {
+                chatListEl.innerHTML = chatListHtml;
+                lastChatListHtml = chatListHtml;
+            }
+            const connEl = sidebar.querySelector('.messenger-connection');
+            if (connEl) {
+                const ready = getMessengerSocketReady();
+                connEl.innerHTML = `<i class="fas fa-circle" style="font-size:9px;margin-right:5px;color:${ready ? '#5cff9a' : '#f4b166'}"></i>${statusText}`;
+            }
+            const total = getMessengerNotificationUnreadTotal();
+            const notifBtn = sidebar.querySelector('.sidebar-header .messenger-nav-btn');
+            if (notifBtn) {
+                const badge = notifBtn.querySelector('.nav-badge');
+                if (badge) {
+                    if (total) {
+                        badge.textContent = total > 99 ? '99+' : total;
+                        badge.style.display = '';
+                    } else {
+                        badge.remove();
+                    }
+                } else if (total) {
+                    notifBtn.insertAdjacentHTML('beforeend', `<span class="nav-badge">${total > 99 ? '99+' : total}</span>`);
+                }
+            }
+            const gcwHost = sidebar.querySelector('.sidebar-group-calls-host');
+            if (gcwHost) {
+                const next = renderGlobalActiveGroupCallWidgets();
+                if (String(gcwHost.innerHTML || '').trim() !== String(next || '').trim()) {
+                    gcwHost.innerHTML = next || '';
+                }
+            }
+            const bottomNavHtml = buildMessengerBottomNavHtml(isMobile);
+            const bottomNav = mainScreen.querySelector('.messenger-bottom-nav');
+            if (bottomNavHtml) {
+                if (!bottomNav) {
+                    mainScreen.insertAdjacentHTML('beforeend', bottomNavHtml);
+                } else if (String(bottomNav.outerHTML) !== String(bottomNavHtml)) {
+                    bottomNav.outerHTML = bottomNavHtml;
+                }
+            } else if (bottomNav) {
+                bottomNav.remove();
+            }
+            renderStories();
+            patchChatTopbarStatus();
+            updateMessengerNewWhileScrolledFabUI();
+            updateMessengerMentionFabUI();
+            syncCallScreenLayoutMode();
+            syncMusicIslandWidget();
+            bindMessengerWorkspaceScrollGuard();
+            const ta = document.getElementById('chatComposerInput');
+            if (ta && messengerView === 'chats' && messengerActiveChatId) {
+                onComposerInput();
+            }
+        }
+
         function renderMainScreen() {
             if (!authProfile) {
                 renderAuthScreen();
                 return;
+            }
+            if (messengerView !== 'chats' && document.querySelector('.messenger-section')) {
+                const sig = computeMessengerSectionSig();
+                if (sig === messengerSectionSigCache) {
+                    return;
+                }
             }
             const focusSnap = captureMessengerFocusSnapshot();
             // Если пользователь прямо сейчас скроллит историю — не перерисовываем чат,
@@ -445,6 +856,20 @@
                 messengerRenderPendingAfterScroll = true;
                 return;
             }
+            // Контент открытого чата не менялся? Тогда не трогаем историю/поле ввода вообще —
+            // обновляем только сайдбар, шапку и статусы. Это убирает дерганье, мигание
+            // аватаров и сворачивание клавиатуры при фоновых событиях.
+            const activeChatIdNow = String(messengerView === 'chats' ? (messengerActiveChatId || '') : '');
+            const wsDirtyForActive =
+                messengerWorkspaceDirty === true ||
+                (messengerWorkspaceDirty && activeChatIdNow && String(messengerWorkspaceDirty) === activeChatIdNow);
+            if (messengerView === 'chats' && activeChatIdNow && !wsDirtyForActive && document.querySelector('#app .chat-workspace')) {
+                patchMessengerShell();
+                if (focusSnap) restoreMessengerFocusSnapshot(focusSnap);
+                messengerSectionSigCache = '';
+                return;
+            }
+            messengerWorkspaceDirty = false;
             // Snapshot прокрутки истории перед перерисовкой (чтобы не прыгало вверх/вниз).
             const hist = document.querySelector('.chat-history');
             const histSnapshot = hist
@@ -477,99 +902,17 @@
             const isMobile = isMobileLayout();
             const statusText = getMessengerSocketReady() ? 'Online' : 'Соединение...';
             const sidebarVisible = !messengerMobileWorkspaceOpen();
-            const sidebarActiveGroupCallsHtml = sidebarVisible ? renderGlobalActiveGroupCallWidgets() : '';
             const mobileWorkspaceActiveCallsHtml = isMobile && messengerView !== 'chats' ? renderGlobalActiveGroupCallWidgets() : '';
-            const mobileBackBar = (isMobile && messengerView !== 'chats')
-                ? `<div class="mobile-workspace-bar"><button type="button" class="messenger-nav-btn" onclick="setMessengerView('chats')" aria-label="Назад"><i class="fas fa-arrow-left"></i></button><span>${escapeHtml({ friends: 'Друзья', settings: 'Настройки', profile: 'Профиль', calls: 'Звонки', notifications: 'Уведомления' }[messengerView] || '')}</span></div>`
-                : '';
-            const workspaceHtml = messengerView === 'calls'
-                ? mobileBackBar + `
-                    <div class="calls-workspace">
-                        <div class="calls-header-card">
-                            <div class="calls-header-icon" aria-hidden="true"><i class="fas fa-phone-alt"></i></div>
-                            <div class="calls-header-title">Звонки</div>
-                        </div>
-                        <div class="workspace-empty-cards calls-action-cards">
-                            <div class="workspace-empty-card" onclick="createRoom()"><i class="fas fa-video"></i><div>Создать комнату</div></div>
-                            <div class="workspace-empty-card" onclick="showJoinModal()"><i class="fas fa-link"></i><div>Подключиться</div></div>
-                        </div>
-                    </div>
-                `
-                : messengerView === 'friends'
-                    ? mobileBackBar + `<div class="workspace-scroll" style="align-items:stretch;"><div class="friends-search-wrap"><input id="friendsSearchInput" class="modal-input" placeholder="Поиск по ID, имени или username" autocomplete="off" oninput="onFriendsSearchInput(event)"></div>${renderFriendsTabContent()}</div>`
-                    : messengerView === 'notifications'
-                        ? mobileBackBar + renderNotificationsWorkspace()
-                    : messengerView === 'settings'
-                            ? mobileBackBar + `
-                                <div class="workspace-scroll" style="align-items:stretch;padding:14px 0;">
-                                    <div style="font-size:20px;font-weight:700;">Настройки</div>
-                                    <button type="button" class="blacklist-open-btn" onclick="openPrivacySettingsModal()"><i class="fas fa-user-shield"></i> Приватность</button>
-                                    <button type="button" class="blacklist-open-btn" onclick="openAppearanceSettingsModal()"><i class="fas fa-palette"></i> Внешний вид</button>
-                                    <button type="button" class="blacklist-open-btn" onclick="openBlacklistModal()"><i class="fas fa-ban"></i> Черный список<span class="bl-count">${(messengerProfile.blacklist || []).length}</span></button>
-                                    <button type="button" class="blacklist-open-btn" onclick="showSeychQrScanner()"><i class="fas fa-qrcode"></i> Вход по QR-код</button>
-                                    <button type="button" class="blacklist-open-btn" onclick="showSeychSessions()"><i class="fas fa-laptop-house"></i> Сессии и устройства</button>
-                                    <div class="settings-signout-row"><button type="button" class="contact-btn delete settings-signout-btn" onclick="signOutProfile()"><i class="fas fa-sign-out-alt"></i> Выйти из аккаунта</button></div>
-                                </div>
-                            `
-                        : renderMessengerWorkspace();
+            const workspaceHtml = renderMainWorkspace();
             const notificationTotal = getMessengerNotificationUnreadTotal();
-            const chatItems = messengerChats.length
-                ? messengerChats.map((chat) => {
-                    const myId = String(authProfile?.appUserId || '').trim();
-                    const lm = chat.lastMessage;
-                    let preview = '';
-                    const kind = String(lm?.messageKind || '');
-                    if (!lm) {
-                        preview = 'История очищена';
-                    } else {
-                        const lmText = String(lm?.text || '');
-                        const isVoiceRec = lm?.messageKind === 'voice' && lmText === 'Голосовое сообщение';
-                        const isMusic = lm?.messageKind === 'voice' && !!lmText && lmText !== 'Голосовое сообщение';
-                        if (isVoiceRec) preview = 'Голосовое сообщение';
-                        else if (isMusic) preview = lmText;
-                        else preview = lmText || 'История очищена';
-                    }
-                    let finalPreview = kind === 'system' ? messengerPlainTextPreview(preview) : preview;
-                    if (lm && kind !== 'system') {
-                        const fromId = String(lm?.fromId || '').trim();
-                        if (fromId && fromId === myId) {
-                            finalPreview = `Вы: ${preview}`;
-                        } else if (fromId && isGroupMessengerChat(chat)) {
-                            const senderName =
-                                getGroupParticipantDisplayName(chat, fromId)
-                                || resolvePeerDisplay(fromId)?.displayName
-                                || resolvePeerDisplay(fromId)?.name
-                                || fromId;
-                            finalPreview = `${senderName}: ${preview}`;
-                        }
-                    }
-                    const pdn = chat.peer?.displayName || chat.peer?.name || chat.peer?.id || '';
-                    const unread = getMessengerUnreadForChat(chat.id);
-                    return `
-                    <div class="messenger-chat-item ${chat.id === messengerActiveChatId ? 'active' : ''}" onclick="openMessengerChatById('${escapeHtml(chat.id)}')" oncontextmenu="openChatListContextMenu(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchstart="startChatListHold(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchend="cancelChatListHold()" ontouchcancel="cancelChatListHold()">
-                        ${unread ? `<div class="messenger-unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
-                        <div class="messenger-avatar">${avatarMarkup(pdn, chat.peer?.avatar || '', chat.peer?.initials)}</div>
-                        <div class="messenger-chat-meta">
-                            <div class="messenger-chat-title">${renderMaybeMarqueeText(pdn, 10, 'messenger-chat-title-text')}</div>
-                            <div class="messenger-chat-preview">${escapeHtml(finalPreview)}</div>
-                        </div>
-                    </div>`;
-                }).join('')
-                : '<div class="chats-empty-card"><i class="fas fa-comments"></i><p>Чатов пока нет</p></div>';
+            const chatItems = buildMessengerChatListHtml();
             {
                 const prevTa = document.getElementById('chatComposerInput');
                 if (prevTa && messengerView === 'chats' && messengerActiveChatId) {
                     composerDraftByPeerId.set(messengerActiveChatId || messengerActivePeerId, prevTa.value);
                 }
             }
-            const bottomNavHtml = isMobile
-                ? `<nav class="messenger-bottom-nav" aria-label="Навигация">
-                        <button type="button" class="${messengerView === 'chats' && !isChatOpen ? 'active' : ''}" onclick="setMessengerView('chats')"><i class="fas fa-comments"></i>Чаты</button>
-                        <button type="button" class="${messengerView === 'friends' ? 'active' : ''}" onclick="setMessengerView('friends')"><i class="fas fa-user-friends"></i>Друзья</button>
-                        <button type="button" class="${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')"><i class="fas fa-phone"></i>Звонки</button>
-                        <button type="button" class="${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')"><i class="fas fa-user"></i>Профиль</button>
-                    </nav>`
-                : '';
+            const bottomNavHtml = buildMessengerBottomNavHtml(isMobile);
             const shellMobile = isMobile ? 'messenger-shell--mobile' : '';
             const shellWs = messengerMobileWorkspaceOpen() ? 'messenger-shell--workspace' : '';
             const shellMobileConversation =
@@ -587,129 +930,25 @@
                 if (!el) return null;
                 return { scrollTop: Number(el.scrollTop || 0) || 0 };
             })();
+            const reattachInput = preserveFocusedMessengerInputBeforeRender();
             document.getElementById('app').innerHTML = `
                 <div class="main-screen main-screen--messenger">
                     <div class="gradient-bg"></div>
                     <div class="messenger-shell ${shellMobile} ${shellWs} ${shellMobileConversation}">
-                        ${isMobile && (messengerView === 'friends' || messengerView === 'calls' || messengerView === 'settings' || messengerView === 'profile') ? `
-                        <div class="mobile-stories-header">
-                            <div class="mobile-stories-container">
-                                <div id="mobileStoriesContainer" class="stories-container"></div>
-                            </div>
-                        </div>` : ''}
                         <aside class="messenger-sidebar">
-                            <div class="sidebar-header">
-                                <span class="sidebar-brand">Seych</span>
-                                <button type="button" class="messenger-nav-btn" onclick="setMessengerView('notifications')" title="Уведомления" aria-label="Уведомления"><i class="fas fa-bell"></i>${notificationTotal ? `<span class="nav-badge">${notificationTotal > 99 ? '99+' : notificationTotal}</span>` : ''}</button>
-                                ${isMobile && messengerView === 'chats' ? `<button type="button" class="messenger-nav-btn sidebar-compose-btn" onclick="openCreateGroupModal()" title="Создать чат" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
-                            </div>
-                            <div class="messenger-sidebar-body">
-                                <div class="messenger-connection" style="margin-top:0;"><i class="fas fa-circle" style="font-size:9px;margin-right:5px;color:${getMessengerSocketReady() ? '#5cff9a' : '#f4b166'}"></i>${statusText}</div>
-                                <div id="storiesContainer" class="stories-container"></div>
-                                ${sidebarActiveGroupCallsHtml}
-                                <div class="messenger-chat-list">${chatItems}</div>
-                                ${sidebarVisible ? `<button type="button" class="messenger-compose-fab" onclick="openCreateGroupModal()" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
-                            </div>
-                            <div class="sidebar-footer-nav">
-                                <button type="button" class="messenger-nav-btn ${messengerView === 'calls' ? 'active' : ''}" onclick="setMessengerView('calls')" title="Звонки"><i class="fas fa-phone"></i></button>
-                                <button type="button" class="messenger-nav-btn ${messengerView === 'friends' ? 'active' : ''}" onclick="setMessengerView('friends')" title="Друзья"><i class="fas fa-user-friends"></i></button>
-                                <button type="button" class="messenger-nav-btn ${messengerView === 'settings' ? 'active' : ''}" onclick="setMessengerView('settings')" title="Настройки"><i class="fas fa-sliders-h"></i></button>
-                                <button type="button" class="messenger-nav-btn ${messengerView === 'profile' ? 'active' : ''}" onclick="setMessengerView('profile')" title="Профиль"><i class="fas fa-user"></i></button>
-                            </div>
+                            ${buildMessengerSidebarHtml({ isMobile, sidebarVisible, notificationTotal, statusText })}
                         </aside>
                         <div class="messenger-workspace">
                             ${mobileWorkspaceActiveCallsHtml}
-                            ${messengerView === 'profile'
-                                ? (() => {
-                                    const own = !messengerViewedProfile;
-                                    if (own) {
-                                        const storiesHtml = buildProfileStoriesSection({
-                                            userId: authProfile?.appUserId || '',
-                                            title: 'Мои истории',
-                                            own: true
-                                        });
-                                        const ownUsername = ensureGeneratedMessengerUsername(messengerProfile.username || authProfile.vkUsername || '', authProfile?.appUserId || appUserId);
-                                        return `${mobileBackBar}<div class="workspace-scroll"><div class="profile-card" style="max-width:580px;width:100%;margin:6px 0;">
-                                            ${renderProfileHeroCard({
-                                                userId: authProfile?.appUserId || '',
-                                                displayName: authProfile.name || authProfile.appUserId || '',
-                                                avatar: authProfile.avatar || '',
-                                                coverUrl: authProfile.coverUrl || '',
-                                                initials: authProfile.initials || '',
-                                                username: ownUsername,
-                                                subtitle: messengerProfile.statusText || 'Без статуса',
-                                                clickableAvatar: true
-                                            })}
-                                            <div style="display:grid;gap:10px;margin-top:12px;">
-                                                <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                                                    <div><div class="contact-chat">Username</div><div class="contact-name">@${escapeHtml(ownUsername)}</div></div>
-                                                    <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(ownUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
-                                                </div>
-                                                <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                                                <div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(messengerProfile.statusText || 'Не указано')}</div></div>
-                                                </div>
-                                                <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                                                    <div><div class="contact-chat">ID</div><div class="contact-name">${escapeHtml(authProfile.appUserId || '')}</div></div>
-                                                    <button type="button" class="contact-btn" onclick="copyAppUserId()" title="Скопировать ID" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
-                                                </div>
-                                            </div>
-                                            <div class="profile-actions"><button type="button" class="contact-btn" onclick="openProfileEditModal()" title="Редактировать"><i class="fas fa-pen"></i></button><button type="button" class="contact-btn" onclick="setMessengerView('settings')" title="Настройки"><i class="fas fa-sliders-h"></i></button></div>
-                                            ${storiesHtml}
-                                        </div></div>`;
-                                    }
-                                    const view = messengerViewedProfile || {};
-                                    const profile = view.profile || {};
-                                    if (!view.ok && view.reason === 'private') {
-                                        return `${mobileBackBar}<div class="workspace-scroll"><div class="profile-card" style="max-width:560px;margin:6px 0;"><div class="profile-avatar"><i class="fas fa-gavel"></i></div><div class="profile-name">Профиль закрыт</div><div class="messenger-connection">Доступ к анкете ограничен настройками приватности.</div></div></div>`;
-                                    }
-                                    if (!view.ok && view.reason === 'blocked') {
-                                        return `${mobileBackBar}<div class="workspace-scroll"><div class="profile-card" style="max-width:560px;margin:6px 0;"><div class="profile-avatar">${profile.avatar ? `<img src="${escapeHtml(profile.avatar)}" alt="" referrerpolicy="no-referrer">` : `<i class="fas fa-ban"></i>`}</div><div class="profile-name">${escapeHtml(profile.name || profile.id || '')}</div><div class="messenger-connection">Этот аккаунт ограничил с вами общение.</div><div class="messenger-connection" style="opacity:.85;">${escapeHtml(profile.statusText || '')}</div></div></div>`;
-                                    }
-                                    const pid = String(profile.id || view.targetUserId || '').trim();
-                                    const isSelf = !!pid && String(authProfile?.appUserId || '') === pid;
-                                    const isFriend = !isSelf && (friendsState.friends || []).some((f) => String(f.id) === pid);
-                                    const dispName = profile.displayName || profile.name || pid || '';
-                                    const avLetter = profile.initials || (dispName.trim().split(/\s+/).filter(Boolean).map((p) => p.charAt(0)).join('').slice(0, 2).toUpperCase() || pid.slice(0, 2).toUpperCase());
-                                    const effectiveUsername = ensureGeneratedMessengerUsername(profile.username || '', pid);
-                                    const unameLine = `@${escapeHtml(effectiveUsername)}`;
-                                    const addBtn = !isSelf && !isFriend ? `<button class="contact-btn" title="Добавить" onclick="sendFriendRequest('${escapeHtml(pid)}')"><i class="fas fa-user-plus"></i></button>` : '';
-                                    const canAddToChats = !isSelf && canCurrentUserAddProfileToChats(view, isFriend);
-                                    const addToGroupBtn = canAddToChats ? `<button class="contact-btn" title="Добавить в чат" onclick="openAddUserToGroupModal('${escapeHtml(pid)}')"><i class="fas fa-comments"></i></button>` : '';
-                                    const msgBtn = !isSelf ? `<button class="contact-btn" title="Написать" onclick="openMessengerChat('${escapeHtml(pid)}')"><i class="fas fa-paper-plane"></i></button>` : '';
-                                    const callBtn = !isSelf ? `<button class="contact-btn" title="Позвонить" onclick="callFriend('${escapeHtml(pid)}')"><i class="fas fa-phone"></i></button>` : '';
-                                    const storiesHtml = buildProfileStoriesSection({
-                                        userId: pid,
-                                        title: 'Публикации',
-                                        own: false
-                                    });
-                                    return `${mobileBackBar}<div class="workspace-scroll"><div class="profile-card" style="max-width:580px;width:100%;margin:6px 0;">
-                                        ${renderProfileHeroCard({
-                                            userId: pid,
-                                            displayName: dispName,
-                                            avatar: profile.avatar || '',
-                                            coverUrl: profile.coverUrl || '',
-                                            initials: avLetter,
-                                            username: effectiveUsername,
-                                            subtitle: profile.statusText || '',
-                                            clickableAvatar: true
-                                        })}
-                                        <div style="display:grid;gap:10px;margin-top:12px;">
-                                            <div class="contact-item" style="justify-content:flex-start;"><div><div class="contact-chat">О себе</div><div class="contact-name">${escapeHtml(profile.statusText || 'Не указано')}</div></div></div>
-                                            <div class="contact-item" style="justify-content:space-between;gap:12px;">
-                                                <div><div class="contact-chat">Username</div><div class="contact-name">${unameLine}</div></div>
-                                                <button type="button" class="contact-btn" onclick="copyTextToClipboard('@${escapeHtml(effectiveUsername)}','Username скопирован')" title="Скопировать username" style="padding:4px 8px;min-width:auto;"><i class="fas fa-copy"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="profile-actions">${addBtn}${addToGroupBtn}${msgBtn}${callBtn}</div>
-                                        ${storiesHtml}
-                                    </div></div>`;
-                                })()
-                                : workspaceHtml}
+                            ${workspaceHtml}
                         </div>
                     </div>
                     ${bottomNavHtml}
                 </div>
             `;
+            if (reattachInput) reattachInput();
+            lastChatListHtml = chatItems;
+            messengerSectionSigCache = messengerView !== 'chats' ? computeMessengerSectionSig() : '';
             syncCallScreenLayoutMode();
             syncMusicIslandWidget();
             // Render stories on all messenger views
@@ -834,7 +1073,13 @@
         window.closeIncomingFriendModal = closeIncomingFriendModal;
         window.acceptIncomingFriendFromModal = acceptIncomingFriendFromModal;
         window.setMessengerView = setMessengerView;
+        window.closeMessengerModal = closeMessengerModal;
         window.openMessengerNotification = openMessengerNotification;
+        window.openNotificationsModal = openNotificationsModal;
+        window.closeNotificationsModal = closeNotificationsModal;
+        window.refreshNotificationsModalContent = refreshNotificationsModalContent;
+        window.markMessengerNotificationsRead = markMessengerNotificationsRead;
+        window.markMessengerWorkspaceDirty = markMessengerWorkspaceDirty;
         window.openMessengerChat = openMessengerChat;
         window.openChatListContextMenu = openChatListContextMenu;
         window.startChatListHold = startChatListHold;
@@ -848,6 +1093,7 @@
         window.openStoryViewerProfile = openStoryViewerProfile;
         window.sendMessageFromComposer = sendMessageFromComposer;
         window.openAppearanceSettingsModal = openAppearanceSettingsModal;
+        window.openPrivacySettingsModal = openPrivacySettingsModal;
         window.composerPrimaryAction = composerPrimaryAction;
         window.onComposerKeydown = onComposerKeydown;
         window.onComposerInput = onComposerInput;
@@ -976,7 +1222,7 @@
                 userName = authProfile.name || '';
                 userAvatar = authProfile.avatar || '';
                 restoreMessengerSessionPeer();
-                connectWS({ type: 'messenger-register', appUserId: authProfile.appUserId || appUserId, userName, userAvatar });
+                connectWS({ type: 'messenger-register', appUserId: authProfile.appUserId || appUserId, userName, userAvatar, deviceId: getSeychDeviceId() });
                 sendMessengerEvent({ type: 'messenger-sync' });
                 pendingGroupInviteCode = parseGroupInviteFromLocation();
                 consumePendingGroupInviteIfAny();

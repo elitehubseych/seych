@@ -277,6 +277,134 @@
                 body = 'Игра завершена. Ничья или игра прервана.';
             }
             showNotification('Дурак', body, 'info');
+            durakShowEndSplash(g);
+        }
+
+        function durakShowEndSplash(g) {
+            if (!g || g.phase !== 'ended') return;
+            if (window.__durakEndSplashEl) return;
+            const csr = document.getElementById('callScreenRoot');
+            if (!csr) return;
+            const won = !!g.winnerId && String(g.winnerId) === String(myId);
+            const names = g.names || {};
+            const winnerName = g.winnerId ? names[g.winnerId] : '';
+            const el = document.createElement('div');
+            el.className = 'durak-end-splash' + (won ? ' is-win' : ' is-loss');
+            const icons = won
+                ? ['fa-crown', 'fa-trophy', 'fa-star', 'fa-fire', 'fa-bolt']
+                : ['fa-frown', 'fa-cloud-rain', 'fa-heart-broken', 'fa-snowflake', 'fa-wind'];
+            const iconHtml = icons
+                .map((ic, i) => {
+                    const ang = (i / icons.length) * Math.PI * 2 - Math.PI / 2;
+                    const rad = 130;
+                    const ix = Math.round(Math.cos(ang) * rad * (i % 2 ? 0.7 : 1));
+                    const iy = Math.round(Math.sin(ang) * rad * 0.7);
+                    return `<i class="fas ${ic}" style="--i:${i};--ix:${ix}px;--iy:${iy}px"></i>`;
+                })
+                .join('');
+            el.innerHTML = `
+                <div class="durak-end-splash-bg"></div>
+                <div class="durak-end-splash-inner">
+                    <div class="durak-end-splash-icons">${iconHtml}</div>
+                    <div class="durak-end-splash-title">${won ? 'Победа' : 'Поражение'}</div>
+                    <div class="durak-end-splash-sub">${winnerName ? 'Победитель: ' + escapeHtml(winnerName) : (won ? 'Вы выиграли!' : 'Игра завершена')}</div>
+                </div>`;
+            csr.appendChild(el);
+            window.__durakEndSplashEl = el;
+            setTimeout(() => {
+                const cur = window.__durakEndSplashEl;
+                if (cur) {
+                    cur.classList.add('is-leaving');
+                    setTimeout(() => cur.remove(), 500);
+                }
+                window.__durakEndSplashEl = null;
+                if (durakGameState && durakGameState.phase === 'ended') {
+                    durakShowResultsWindow(durakGameState);
+                }
+            }, 4000);
+        }
+
+        function durakCloseResultsWindow() {
+            if (window.__durakResultsTimer) {
+                clearTimeout(window.__durakResultsTimer);
+                window.__durakResultsTimer = null;
+            }
+            const el = window.__durakResultsEl;
+            if (el) {
+                el.classList.add('is-leaving');
+                setTimeout(() => el.remove(), 350);
+            }
+            window.__durakResultsEl = null;
+        }
+
+        function durakShowResultsWindow(g) {
+            if (!g || g.phase !== 'ended') return;
+            const csr = document.getElementById('callScreenRoot');
+            if (!csr) return;
+            if (window.__durakResultsEl) return;
+            const names = g.names || {};
+            const players = g.players || [];
+            const winnerId = g.winnerId;
+            const endedHands = g.endedHands || {};
+            const rows = players
+                .map((p) => {
+                    const pid = String(p.id);
+                    const won = !!winnerId && String(winnerId) === pid;
+                    const name = names[p.id] || p.name || 'Игрок';
+                    const cards = Array.isArray(endedHands[p.id]) ? endedHands[p.id] : [];
+                    let cardsHtml = '';
+                    if (cards.length) {
+                        cardsHtml = `<div class="durak-results-cards">${cards
+                            .map((c) => `<div class="durak-card-face durak-results-card" style="${durakCardFaceStyle(c)}"></div>`)
+                            .join('')}</div>`;
+                    } else {
+                        cardsHtml = '<div class="durak-results-none">Карт не осталось</div>';
+                    }
+                    const icWin = won ? ' is-win' : '';
+                    const icon = won ? 'fa-crown' : cards.length ? 'fa-hand-paper' : 'fa-check';
+                    const status = won ? 'Победитель' : cards.length ? `Осталось карт: ${cards.length}` : 'Вышел';
+                    return `<div class="durak-results-row${icWin}">
+                        <div class="durak-results-ic"><i class="fas ${icon}"></i></div>
+                        <div class="durak-results-body">
+                            <div class="durak-results-name">${escapeHtml(name)}</div>
+                            <div class="durak-results-status">${escapeHtml(status)}</div>
+                            ${cardsHtml}
+                        </div>
+                    </div>`;
+                })
+                .join('');
+            const modal = document.createElement('div');
+            modal.className = 'durak-results-modal';
+            modal.innerHTML = `<div class="durak-results-modal-card">
+                <div class="durak-results-modal-title">Игра завершена</div>
+                <div class="durak-results-list">${rows}</div>
+                <div class="durak-results-actions">
+                    <button type="button" class="durak-btn-primary" id="durakRematchBtn"><i class="fas fa-redo" aria-hidden="true"></i> Сыграть ещё</button>
+                    <button type="button" class="durak-btn-secondary" id="durakCloseResultsBtn">Закрыть</button>
+                </div>
+            </div>`;
+            csr.appendChild(modal);
+            window.__durakResultsEl = modal;
+            const rematchBtn = document.getElementById('durakRematchBtn');
+            const closeBtn = document.getElementById('durakCloseResultsBtn');
+            if (rematchBtn) {
+                rematchBtn.onclick = () => {
+                    sendDurak({ type: 'durak-rematch' });
+                    durakCloseResultsWindow();
+                };
+            }
+            if (closeBtn) {
+                closeBtn.onclick = () => {
+                    sendDurak({ type: 'durak-leave' });
+                    durakCloseResultsWindow();
+                };
+            }
+            window.__durakResultsTimer = setTimeout(() => {
+                if (durakGameState && durakGameState.phase === 'ended') {
+                    sendDurak({ type: 'durak-leave' });
+                }
+                durakCloseResultsWindow();
+            }, 20000);
         }
 
         function updateDurakCallTogglePosition() {
@@ -593,6 +721,129 @@
                 });
             };
             requestAnimationFrame(() => requestAnimationFrame(run));
+        }
+
+        function durakCardBackCss() {
+            const backUrl = resolveAssetUrl(`assets/${durakCardPack}/back.png`);
+            return `background-image:url('${backUrl}');background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#1a1528`;
+        }
+
+        function durakFlyCardBackTo(fromRect, toEl) {
+            const fr = durakFlyNormalizeRect(fromRect);
+            if (!fr || fr.width < 4 || fr.height < 4 || !toEl) return;
+            const toRect = toEl.getBoundingClientRect();
+            if (toRect.width < 2 || toRect.height < 2) return;
+            const fly = document.createElement('div');
+            fly.className = 'durak-card-face durak-card-fly-ghost';
+            fly.setAttribute('aria-hidden', 'true');
+            const w = 42;
+            const h = 58;
+            fly.style.cssText =
+                durakCardBackCss() +
+                `;position:fixed;left:0;top:0;width:${w}px;height:${h}px;margin:0;border-radius:8px;border:1px solid rgba(255,255,255,0.28);box-shadow:0 14px 34px rgba(0,0,0,0.5);transform-origin:center center;pointer-events:none;z-index:10050;will-change:transform,opacity`;
+            document.body.appendChild(fly);
+            const startCx = fr.left + fr.width / 2;
+            const startCy = fr.top + fr.height / 2;
+            const fx = startCx - w / 2;
+            const fy = startCy - h / 2;
+            const tx = toRect.left + (toRect.width - w) / 2;
+            const ty = toRect.top + (toRect.height - h) / 2;
+            const durMs = 420;
+            const easing = 'cubic-bezier(0.2, 0.9, 0.2, 1)';
+            const run = () => {
+                if (typeof fly.animate === 'function') {
+                    try {
+                        const anim = fly.animate(
+                            [
+                                { transform: `translate(${fx}px, ${fy}px) scale(0.5) rotate(0deg)`, opacity: 0.92 },
+                                { transform: `translate(${tx}px, ${ty}px) scale(0.92) rotate(8deg)`, opacity: 0.86 }
+                            ],
+                            { duration: durMs, easing, fill: 'forwards' }
+                        );
+                        anim.onfinish = () => fly.remove();
+                        setTimeout(() => fly.remove(), durMs + 180);
+                        return;
+                    } catch (e) {
+                        /* fall through */
+                    }
+                }
+                fly.style.transition = `transform ${durMs}ms ${easing}, opacity ${durMs}ms ease`;
+                fly.style.transform = `translate(${tx}px, ${ty}px) scale(0.92) rotate(8deg)`;
+                fly.style.opacity = '0.86';
+                setTimeout(() => fly.remove(), durMs + 180);
+            };
+            requestAnimationFrame(() => {
+                fly.style.transform = `translate(${fx}px, ${fy}px) scale(0.5) rotate(0deg)`;
+                fly.style.opacity = '0.92';
+                requestAnimationFrame(run);
+            });
+        }
+
+        /** Раздача в начале новой партии: колода выезжает в центр, карты летят игрокам. */
+        function durakRunDealAnimation(ov, g) {
+            if (!ov || !g || g.phase !== 'playing') return;
+            const deckStack = ov.querySelector('.durak-deck-stack');
+            const board = ov.querySelector('.durak-table-board');
+            const deckRect = deckStack ? deckStack.getBoundingClientRect() : null;
+            if (!deckRect || deckRect.width < 4) return;
+            const nPlayers = (g.players || []).length;
+            if (nPlayers < 2) return;
+            const handTarget = g.handTarget || 6;
+            const stepMs = 85;
+
+            if (board) {
+                const br = board.getBoundingClientRect();
+                const dx = br.left + br.width / 2 - (deckRect.left + deckRect.width / 2);
+                const dy = br.top + br.height / 2 - (deckRect.top + deckRect.height / 2);
+                deckStack.style.transition = 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)';
+                deckStack.style.transform = `translate(${dx}px, ${dy}px) scale(1.12)`;
+                setTimeout(() => {
+                    deckStack.style.transition = 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)';
+                    deckStack.style.transform = '';
+                    setTimeout(() => {
+                        deckStack.style.transition = '';
+                    }, 820);
+                }, 860);
+            }
+
+            const tiles = ov.querySelectorAll('.durak-player-tile[data-durak-pid]');
+            const tileByPid = {};
+            tiles.forEach((t) => {
+                tileByPid[String(t.getAttribute('data-durak-pid'))] = t;
+            });
+            const myPidStr = String(myId || '');
+
+            const hand = document.getElementById('durakMyHand');
+            if (hand) {
+                const cards = hand.querySelectorAll('.durak-card-face');
+                cards.forEach((el, i) => {
+                    const delay = i * nPlayers * stepMs + 120;
+                    el.style.animation = 'none';
+                    el.style.opacity = '0';
+                    el.style.transform = 'translateY(34px) scale(0.82)';
+                    setTimeout(() => {
+                        el.style.transition = 'opacity 0.34s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)';
+                        el.style.opacity = '1';
+                        el.style.transform = 'translateY(0) scale(1)';
+                    }, delay);
+                });
+            }
+
+            let step = 0;
+            for (let r = 0; r < handTarget; r++) {
+                for (const p of g.players || []) {
+                    if (String(p.id) === myPidStr) {
+                        step++;
+                        continue;
+                    }
+                    const tile = tileByPid[String(p.id)];
+                    const delay = step * stepMs + 160;
+                    if (tile) {
+                        setTimeout(() => durakFlyCardBackTo(deckRect, tile), delay);
+                    }
+                    step++;
+                }
+            }
         }
 
         function durakRunPlayFlyAnimations(ov, g, preCapturedFromRect) {
@@ -932,6 +1183,12 @@
             let ov = document.getElementById('durakOverlay');
             if (!durakGameState) {
                 window.__durakLastPlayAnimSeq = 0;
+                durakCloseResultsWindow();
+                if (window.__durakEndSplashEl) {
+                    const sp = window.__durakEndSplashEl;
+                    sp.remove();
+                    window.__durakEndSplashEl = null;
+                }
                 if (ov) ov.remove();
                 applyDurakFocusMode(false);
                 syncDurakCallScreenClasses(null);
@@ -940,6 +1197,14 @@
                 return;
             }
             const g = durakGameState;
+            if (g.phase !== 'ended') {
+                durakCloseResultsWindow();
+                if (window.__durakEndSplashEl) {
+                    const sp = window.__durakEndSplashEl;
+                    sp.remove();
+                    window.__durakEndSplashEl = null;
+                }
+            }
             if (g.phase !== 'playing') {
                 window.__durakLastPlayAnimSeq = 0;
             }
@@ -1338,6 +1603,9 @@
                             setTimeout(() => hand.classList.remove('durak-deal-anim'), 780);
                         });
                     });
+                    if (bf === 0 && !!g.firstDealRules) {
+                        durakRunDealAnimation(ov, g);
+                    }
                 }
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => durakRunPlayFlyAnimations(ov, g, durakFlyFromRectSnap));

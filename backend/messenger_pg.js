@@ -278,6 +278,21 @@ async function ensureTables() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      user_id VARCHAR(120) NOT NULL,
+      device_id VARCHAR(64) NOT NULL,
+      device_name VARCHAR(120) NOT NULL DEFAULT '',
+      platform VARCHAR(60) NOT NULL DEFAULT '',
+      ip VARCHAR(64) NOT NULL DEFAULT '',
+      city VARCHAR(120) NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL DEFAULT 0,
+      last_seen_at BIGINT NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, device_id)
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, last_seen_at DESC)');
+
   // Indexes for stories
   await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user_time ON stories(user_id, created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories(expires_at)');

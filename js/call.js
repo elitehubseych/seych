@@ -18,7 +18,7 @@
         function parseRoomFromPath() {
             const params = new URLSearchParams(window.location.search);
             const startPayload = params.get('tgWebAppStartParam') || params.get('startapp') || params.get('start') || '';
-            if (/^id[a-z0-9_-]+$/i.test(startPayload)) {
+            if (/^(id|grp_call_)[a-z0-9_-]+$/i.test(startPayload)) {
                 return startPayload;
             }
             const parts = window.location.pathname.split('/').filter(Boolean);
@@ -26,7 +26,7 @@
                 parts.pop();
             }
             const last = parts[parts.length - 1] || '';
-            if (/^id[a-z0-9_-]+$/i.test(last)) {
+            if (/^(id|grp_call_)[a-z0-9_-]+$/i.test(last)) {
                 return last;
             }
             return null;
@@ -35,12 +35,12 @@
         function parseRoomInput(raw) {
             const value = String(raw || '').trim();
             if (!value) return '';
-            if (/^id[a-z0-9_-]+$/i.test(value)) return value;
+            if (/^(id|grp_call_)[a-z0-9_-]+$/i.test(value)) return value;
             try {
                 const url = new URL(value);
                 const segs = url.pathname.split('/').filter(Boolean);
                 const maybeRoom = segs[segs.length - 1] || '';
-                if (/^id[a-z0-9_-]+$/i.test(maybeRoom)) return maybeRoom;
+                if (/^(id|grp_call_)[a-z0-9_-]+$/i.test(maybeRoom)) return maybeRoom;
             } catch (_) {}
             return '';
         }
@@ -569,33 +569,37 @@
             };
             let lastErr = null;
             for (const apiUrl of FRIENDS_API_FALLBACKS) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(requestBody)
-                    });
-                    const rawText = await response.text();
-                    let data = null;
+                for (let attempt = 0; attempt < 2; attempt++) {
                     try {
-                        data = rawText ? JSON.parse(rawText) : null;
-                    } catch (_) {
-                        const raw = String(rawText || '');
-                        if (/^\s*</.test(raw)) {
-                            throw new Error(`API returned HTML: ${raw.slice(0, 160)}`);
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody)
+                        });
+                        const rawText = await response.text();
+                        let data = null;
+                        try {
+                            data = rawText ? JSON.parse(rawText) : null;
+                        } catch (_) {
+                            const raw = String(rawText || '');
+                            if (/^\s*</.test(raw)) {
+                                throw new Error(`API returned HTML: ${raw.slice(0, 160)}`);
+                            }
+                            throw new Error(raw ? `Invalid JSON: ${raw.slice(0, 160)}` : 'Invalid JSON');
                         }
-                        throw new Error(raw ? `Invalid JSON: ${raw.slice(0, 160)}` : 'Invalid JSON');
+                        if (!data || !data.success) {
+                            throw new Error((data && data.error) ? data.error : 'Ошибка друзей');
+                        }
+                        if (apiUrl && apiUrl !== FRIENDS_API) {
+                            FRIENDS_API = apiUrl;
+                            try { localStorage.setItem('seych-friends-api-url', apiUrl); } catch (_) {}
+                        }
+                        return data.data || {};
+                    } catch (err) {
+                        lastErr = err;
+                        if (!(err instanceof TypeError) || attempt > 0) break;
+                        await new Promise((resolve) => setTimeout(resolve, 2500));
                     }
-                    if (!data || !data.success) {
-                        throw new Error((data && data.error) ? data.error : 'Ошибка друзей');
-                    }
-                    if (apiUrl && apiUrl !== FRIENDS_API) {
-                        FRIENDS_API = apiUrl;
-                        try { localStorage.setItem('seych-friends-api-url', apiUrl); } catch (_) {}
-                    }
-                    return data.data || {};
-                } catch (err) {
-                    lastErr = err;
                 }
             }
             throw lastErr || new Error('Ошибка друзей');
@@ -1439,6 +1443,24 @@
         function signOutProfile() {
             clearProfile();
             window.location.reload();
+        }
+
+        function forceSignOut() {
+            try {
+                if (ws && ws.__closingByUser === undefined) {
+                    ws.__closingByUser = true;
+                    try { ws.close(); } catch (_) {}
+                }
+            } catch (_) {}
+            clearProfile();
+            if (typeof showNotification === 'function') {
+                try {
+                    showNotification('Сессия завершена', 'Это устройство было отключено от аккаунта на другом устройстве', 'warning');
+                } catch (_) {}
+            }
+            setTimeout(() => {
+                try { window.location.reload(); } catch (_) {}
+            }, 1200);
         }
 
         function openVkDM(contact, roomLink) {
@@ -2576,7 +2598,7 @@
         function ensureInviteRoomId() {
             if (roomId) return roomId;
             roomId = generateRoomId();
-            history.replaceState(null, '', `${getBasePath().replace(/\/$/, '')}/${roomId}`);
+            history.replaceState(null, '', `${getRootBasePath().replace(/\/$/, '')}/${roomId}`);
             return roomId;
         }
 
@@ -2624,7 +2646,7 @@
                 groupCallAllowedUserIds,
                 reconnectKey: getReconnectKey()
             });
-            history.replaceState(null, '', `${getBasePath().replace(/\/$/, '')}/${roomId}`);
+            history.replaceState(null, '', `${getRootBasePath().replace(/\/$/, '')}/${roomId}`);
 
             renderCallScreen();
             startCallTimer();
@@ -2656,7 +2678,7 @@
             roomId = id;
             currentGroupCallChatId = String(options.groupChatId || '').trim();
             currentGroupCallTitle = String(options.groupTitle || '').trim();
-            history.replaceState(null, '', `${getBasePath().replace(/\/$/, '')}/${roomId}`);
+            history.replaceState(null, '', `${getRootBasePath().replace(/\/$/, '')}/${roomId}`);
 
             connectWS({
                 type: 'join',
@@ -3548,6 +3570,9 @@
             const fromName = data.from;
 
             switch (data.type) {
+                case 'session-terminated':
+                    forceSignOut();
+                    break;
                 case 'messenger-sync':
                     loadMessengerNotifications();
                     if (data.selfProfile && typeof data.selfProfile === 'object') {
@@ -3801,6 +3826,7 @@
                             return out;
                         });
                         messengerMessages.set(data.chatId, merged);
+                        markMessengerWorkspaceDirty(data.chatId);
                         syncChatLastMessagePreviewFromMessages(data.chatId);
                         messengerChats = mergeMessengerChatsWithHints(messengerChats);
                     }
@@ -3937,6 +3963,7 @@
                             }
                         }
                         messengerMessages.set(data.chatId, next.slice(-300));
+                        markMessengerWorkspaceDirty(data.chatId);
                         syncChatLastMessagePreviewFromMessages(chatId);
                         if (
                             shouldRenderMessengerUi() &&
@@ -4042,12 +4069,14 @@
                             return { ...it };
                         });
                         messengerMessages.set(chatId, next);
+                        markMessengerWorkspaceDirty(chatId);
                         if (shouldRenderMessengerUi()) renderMainScreen();
                     }
                     break;
                 case 'messenger-chat-deleted':
                     if (data.chatId) {
                         messengerMessages.delete(data.chatId);
+                        markMessengerWorkspaceDirty(data.chatId);
                         if (String(data.scope || '') === 'all' && messengerActiveChatId === data.chatId) {
                             messengerActiveChatId = '';
                             messengerActivePeerId = '';
@@ -4066,6 +4095,7 @@
                         }
                         const prev = messengerMessages.get(data.chatId) || [];
                         messengerMessages.set(data.chatId, prev.map((item) => item.id === m.id ? m : item));
+                        markMessengerWorkspaceDirty(data.chatId);
                         syncChatLastMessagePreviewFromMessages(data.chatId);
                         if (shouldRenderMessengerUi()) renderMainScreen();
                     }
@@ -4078,6 +4108,7 @@
                             data.chatId,
                             prev.filter((item) => item.id !== data.messageId)
                         );
+                        markMessengerWorkspaceDirty(data.chatId);
                         syncChatLastMessagePreviewFromMessages(data.chatId);
                         if (shouldRenderMessengerUi()) renderMainScreen();
                     }
@@ -4095,6 +4126,7 @@
                             recordMessengerReactionNotifications(data.chatId, data.messageId, prevMessage, data.reactions);
                         }
                         messengerMessages.set(data.chatId, next);
+                        markMessengerWorkspaceDirty(data.chatId);
                         if (shouldRenderMessengerUi()) renderMainScreen();
                     }
                     break;
@@ -4156,6 +4188,7 @@
                                     chatId,
                                     prev.filter((m) => !(m && m.uploading && String(m.fromId || '') === myId))
                                 );
+                                markMessengerWorkspaceDirty(chatId);
                             }
                         } catch (_) {}
                     }

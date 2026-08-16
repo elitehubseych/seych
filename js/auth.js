@@ -10,10 +10,9 @@
         };
         try {
             var saved = String(localStorage.getItem('seych-auth-api-url') || '').trim();
-            if (saved) push(saved);
+            if (saved && saved.indexOf('auth_api.php') === -1) push(saved);
         } catch (_) {}
         if (typeof WS_ORIGIN !== 'undefined' && WS_ORIGIN) push(WS_ORIGIN + '/auth');
-        if (typeof API_BASE !== 'undefined' && API_BASE) push(API_BASE + '/backend/auth_api.php');
         return list;
     })();
 
@@ -114,44 +113,49 @@
             var details = [];
             for (var i = 0; i < AUTH_API_HOSTS.length; i++) {
                 var apiUrl = AUTH_API_HOSTS[i];
-                try {
-                    var response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(requestBody)
-                    });
-                    var rawText = await response.text();
-                    var data = null;
+                for (var attempt = 0; attempt < 2; attempt++) {
                     try {
-                        data = rawText ? JSON.parse(rawText) : null;
-                    } catch (_) {
-                        if (/^\s*</.test(String(rawText || ''))) {
-                            var htmlErr = new Error('Сервер вернул HTML вместо JSON (' + apiUrl + ')');
-                            details.push(apiUrl + ': HTML (HTTP ' + response.status + ')');
-                            throw htmlErr;
-                        }
-                        details.push(apiUrl + ': некорректный ответ (HTTP ' + response.status + ')');
-                        throw new Error(rawText ? 'Некорректный ответ сервера' : 'Пустой ответ сервера');
-                    }
-                    if (!data || !data.success) {
-                        var err = new Error((data && data.error) || 'Ошибка сервера');
-                        err.serverError = true;
-                        details.push(apiUrl + ': ' + err.message);
-                        throw err;
-                    }
-                    if (i > 0 && apiUrl !== AUTH_API_HOSTS[0]) {
+                        var response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody)
+                        });
+                        var rawText = await response.text();
+                        var data = null;
                         try {
-                            localStorage.setItem('seych-auth-api-url', apiUrl);
+                            data = rawText ? JSON.parse(rawText) : null;
+                        } catch (_) {
+                            if (/^\s*</.test(String(rawText || ''))) {
+                                var htmlErr = new Error('Сервер вернул HTML вместо JSON (' + apiUrl + ')');
+                                details.push(apiUrl + ': HTML (HTTP ' + response.status + ')');
+                                throw htmlErr;
+                            }
+                            details.push(apiUrl + ': некорректный ответ (HTTP ' + response.status + ')');
+                            throw new Error(rawText ? 'Некорректный ответ сервера' : 'Пустой ответ сервера');
+                        }
+                        if (!data || !data.success) {
+                            var err = new Error((data && data.error) || 'Ошибка сервера');
+                            err.serverError = true;
+                            details.push(apiUrl + ': ' + err.message);
+                            throw err;
+                        }
+                        if (i > 0 && apiUrl !== AUTH_API_HOSTS[0]) {
+                            try {
+                                localStorage.setItem('seych-auth-api-url', apiUrl);
+                            } catch (_) {}
+                        }
+                        return data.data || {};
+                    } catch (err) {
+                        lastErr = err;
+                        try {
+                            console.error('[authApi] ' + action + ' -> ' + apiUrl + ':', err && err.message ? err.message : err);
                         } catch (_) {}
+                        if (err.serverError) break;
+                        if (!(err instanceof TypeError) || attempt > 0) break;
+                        await new Promise(function (resolve) { setTimeout(resolve, 2500); });
                     }
-                    return data.data || {};
-                } catch (err) {
-                    lastErr = err;
-                    try {
-                        console.error('[authApi] ' + action + ' -> ' + apiUrl + ':', err && err.message ? err.message : err);
-                    } catch (_) {}
-                    if (err.serverError) break;
                 }
+                if (lastErr && lastErr.serverError) break;
             }
             if (!details.length) details.push('хостов нет');
             if (lastErr && lastErr.message && details.length > 1 && !lastErr.serverError) {
@@ -218,6 +222,23 @@
         if (!el) return;
         el.textContent = text || '';
         el.className = 'authw-form-message' + (kind ? ' authw-form-message--' + kind : '');
+    }
+
+    function showAuthToast(text) {
+        var existing = document.getElementById('authwToast');
+        if (existing) existing.remove();
+        var toast = document.createElement('div');
+        toast.className = 'authw-toast';
+        toast.id = 'authwToast';
+        toast.textContent = text || '';
+        document.body.appendChild(toast);
+        setTimeout(function () {
+            toast.classList.add('authw-toast--show');
+        }, 20);
+        setTimeout(function () {
+            toast.classList.remove('authw-toast--show');
+            setTimeout(function () { toast.remove(); }, 300);
+        }, 3000);
     }
 
     function setBtnLoading(btn, loading, text) {
@@ -884,15 +905,15 @@
                 return Promise.reject(new Error('no geo'));
             }
         }
-        return fetchJson('https://ipapi.co/json/')
+        return fetchJson('https://ipinfo.io/json')
             .catch(function () {
-                return fetchJson('https://ipinfo.io/json');
+                return fetchJson('https://ip-api.com/json/');
             })
             .then(function (data) {
                 if (!data || !data.ip) return {};
                 return {
                     ip: String(data.ip || ''),
-                    city: String(data.city || data.region || '') || ''
+                    city: String(data.city || data.region || data.country || '') || ''
                 };
             })
             .catch(function () {
@@ -904,7 +925,7 @@
 
     function showSeychQrScanner() {
         if (!window.jsQR) {
-            alert('Модуль сканера не загрузился. Обновите страницу и попробуйте ещё раз.');
+            showAuthToast('Модуль сканера не загрузился. Обновите страницу и попробуйте ещё раз.');
             return;
         }
         var existing = document.getElementById('authwScanModal');
@@ -1000,13 +1021,20 @@
     function renderScanConfirm(token, requester) {
         var modal = document.getElementById('authwScanModal');
         if (!modal) return;
+        var me = (typeof authProfile !== 'undefined' && authProfile) ? authProfile : {};
+        var meName = String(me.name || '').trim() || 'Пользователь';
+        var meAvatar = String(me.avatar || '').trim();
+        var avatarHtml = meAvatar
+            ? '<img src="' + escapeHtml(meAvatar) + '" alt="' + escapeHtml(meName) + '" referrerpolicy="no-referrer" onerror="this.style.display=\'none\';this.parentNode.insertBefore(document.createTextNode(\'\\uf007\'),this.parentNode.firstChild);">'
+            : '<i class="fas fa-user"></i>';
         modal.innerHTML = [
             '<div class="authw-scan-content authw-scan-content--confirm">',
             '    <div class="authw-scan-header"><i class="fas fa-desktop"></i> Подтверждение входа</div>',
             '    <div class="authw-confirm-body">',
-            '        <div class="authw-confirm-avatar"><i class="fas fa-laptop"></i></div>',
-            '        <div class="authw-confirm-name">' + escapeHtml(requester.name || 'Новое устройство') + '</div>',
+            '        <div class="authw-confirm-avatar">' + avatarHtml + '</div>',
+            '        <div class="authw-confirm-name">' + escapeHtml(meName) + '</div>',
             '        <div class="authw-confirm-meta">',
+            '            <div class="authw-confirm-meta-row"><i class="fas fa-laptop"></i><span>Устройство: <b>' + escapeHtml(requester.name || 'Новое устройство') + '</b></span></div>',
             '            <div class="authw-confirm-meta-row"><i class="fas fa-globe"></i><span>IP: <b>' + escapeHtml(requester.ip || '—') + '</b></span></div>',
             '            <div class="authw-confirm-meta-row"><i class="fas fa-city"></i><span>Город: <b>' + escapeHtml(requester.city || '—') + '</b></span></div>',
             '        </div>',
@@ -1156,7 +1184,7 @@
         var me = currentAuthUser();
         var appUserId = String(me.appUserId || '').trim();
         if (!appUserId) {
-            alert('Войдите в аккаунт');
+            showAuthToast('Войдите в аккаунт');
             return;
         }
         var deviceId = getOrCreateDeviceId();
@@ -1192,10 +1220,16 @@
         var appUserId = String(me.appUserId || '').trim();
         if (!appUserId) return;
         var deviceId = getOrCreateDeviceId();
+        var devInfo = detectDeviceInfo();
         var host = document.getElementById('authwSessionsList');
         if (!host) return;
         host.innerHTML = '<div class="authw-sessions-loading"><i class="fas fa-spinner fa-spin"></i> Загружаем...</div>';
-        authApi('sessions_list', { appUserId: appUserId, deviceId: deviceId })
+        authApi('sessions_list', {
+            appUserId: appUserId,
+            deviceId: deviceId,
+            deviceName: devInfo.name,
+            platform: devInfo.platform
+        })
             .then(function (data) {
                 renderSessionsList(host, data.sessions);
             })
@@ -1243,14 +1277,43 @@
         var appUserId = String(me.appUserId || '').trim();
         var deviceId = getOrCreateDeviceId();
         if (!appUserId || !targetId) return;
-        if (!window.confirm('Завершить сессию на этом устройстве?')) return;
-        authApi('sessions_terminate', { appUserId: appUserId, deviceId: deviceId, targetId: targetId })
-            .then(function () {
-                loadSessionsList();
-            })
-            .catch(function (err) {
-                alert((err && err.message) || 'Не удалось завершить сессию');
-            });
+        var existing = document.getElementById('authwConfirmModal');
+        if (existing) existing.remove();
+        var modal = document.createElement('div');
+        modal.className = 'authw-scan-modal';
+        modal.id = 'authwConfirmModal';
+        modal.innerHTML = [
+            '<div class="authw-scan-content">',
+            '    <div class="authw-scan-header"><i class="fas fa-power-off"></i> Завершить сессию?</div>',
+            '    <div class="authw-confirm-text">Устройство будет отключено от аккаунта и не сможет получать сообщения, пока вы снова не войдёте.</div>',
+            '    <div class="authw-form-message" id="authwConfirmMsg"></div>',
+            '    <div class="authw-confirm-actions">',
+            '        <button type="button" class="authw-btn authw-btn--ghost" id="authwConfirmCancel">Отмена</button>',
+            '        <button type="button" class="authw-btn authw-btn--danger" id="authwConfirmOk">Завершить сессию</button>',
+            '    </div>',
+            '</div>'
+        ].join('');
+        document.body.appendChild(modal);
+        document.getElementById('authwConfirmCancel').addEventListener('click', function () {
+            modal.remove();
+        });
+        document.getElementById('authwConfirmOk').addEventListener('click', function () {
+            var btn = document.getElementById('authwConfirmOk');
+            var msgEl = document.getElementById('authwConfirmMsg');
+            if (btn) setBtnLoading(btn, true);
+            authApi('sessions_terminate', { appUserId: appUserId, deviceId: deviceId, targetId: targetId })
+                .then(function () {
+                    modal.remove();
+                    loadSessionsList();
+                })
+                .catch(function (err) {
+                    if (msgEl) {
+                        msgEl.textContent = (err && err.message) || 'Не удалось завершить сессию';
+                        msgEl.className = 'authw-form-message authw-form-message--error';
+                    }
+                    if (btn) setBtnLoading(btn, false);
+                });
+        });
     }
 
     window.SeychAuth = {

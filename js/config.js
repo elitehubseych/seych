@@ -3,7 +3,18 @@
             if (parts.length && parts[parts.length - 1].toLowerCase() === 'index.html') {
                 parts.pop();
             }
-            if (parts.length && /^id[a-z0-9_-]+$/i.test(parts[parts.length - 1])) {
+            if (parts.length && /^(id|grp_call_)[a-z0-9_-]+$/i.test(parts[parts.length - 1])) {
+                parts.pop();
+            }
+            return '/' + parts.join('/');
+        }
+
+        function getRootBasePath() {
+            const parts = window.location.pathname.split('/').filter(Boolean);
+            if (parts.length && parts[parts.length - 1].toLowerCase() === 'index.html') {
+                parts.pop();
+            }
+            while (parts.length && /^(id|grp_call_)[a-z0-9_-]+$/i.test(parts[parts.length - 1])) {
                 parts.pop();
             }
             return '/' + parts.join('/');
@@ -14,7 +25,9 @@
         const TELEGRAM_AUTH_API = `${API_BASE}/backend/telegram_auth.php`;
         let WS_ORIGIN = '';
         try {
-            WS_ORIGIN = new URL(WS_URL).origin;
+            const parsed = new URL(WS_URL);
+            parsed.protocol = 'https:';
+            WS_ORIGIN = parsed.origin;
         } catch (_) {}
         let FRIENDS_API = WS_ORIGIN ? `${WS_ORIGIN}/friends` : '';
         try {
@@ -32,18 +45,10 @@
             };
             try {
                 const saved = String(localStorage.getItem('seych-friends-api-url') || '').trim();
-                if (saved) push(saved);
+                if (saved && !saved.includes('friends_api.php')) push(saved);
             } catch (_) {}
             if (WS_ORIGIN) push(`${WS_ORIGIN}/friends`);
             push(FRIENDS_API);
-            try {
-                const base = `${window.location.origin}${getBasePath().replace(/\/$/, '')}/`;
-                push(new URL('backend/friends_api.php', base).toString());
-            } catch (_) {}
-            try {
-                push(new URL('backend/friends_api.php', `${window.location.origin}/`).toString());
-            } catch (_) {}
-            push(`${API_BASE}/backend/friends_api.php`);
             return list;
         })();
         const LINK_PREVIEW_API = `${API_BASE}/backend/link_preview.php`;

@@ -21,7 +21,69 @@ function normalizeDeviceName(value) {
         .slice(0, 60) || 'Новое устройство';
 }
 
-function upsertDeviceSession(userId, info) {
+async function persistDeviceSessionRow(session) {
+    if (!pg.isEnabled()) return;
+    try {
+        await pg.query(
+            `INSERT INTO user_sessions (user_id, device_id, device_name, platform, ip, city, created_at, last_seen_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+             ON CONFLICT (user_id, device_id) DO UPDATE SET
+               device_name = EXCLUDED.device_name,
+               platform = EXCLUDED.platform,
+               ip = EXCLUDED.ip,
+               city = EXCLUDED.city,
+               last_seen_at = EXCLUDED.last_seen_at`,
+            [
+                session.userId,
+                session.deviceId,
+                session.deviceName,
+                session.platform,
+                session.ip,
+                session.city,
+                session.createdAt,
+                session.lastSeenAt
+            ]
+        );
+    } catch (err) {
+        console.error('[auth] persist session failed:', err && err.message ? err.message : err);
+    }
+}
+
+async function deleteDeviceSessionRow(userId, deviceId) {
+    if (!pg.isEnabled()) return;
+    try {
+        await pg.query('DELETE FROM user_sessions WHERE user_id = $1 AND device_id = $2', [String(userId || '').trim(), String(deviceId || '').trim()]);
+    } catch (err) {
+        console.error('[auth] delete session failed:', err && err.message ? err.message : err);
+    }
+}
+
+async function listDeviceSessionsFromDb(userId) {
+    if (!pg.isEnabled()) return null;
+    try {
+        const { rows } = await pg.query(
+            `SELECT user_id, device_id, device_name, platform, ip, city, created_at, last_seen_at
+               FROM user_sessions
+              WHERE user_id = $1
+              ORDER BY last_seen_at DESC`,
+            [String(userId || '').trim()]
+        );
+        return rows.map((r) => ({
+            deviceId: String(r.device_id || ''),
+            deviceName: String(r.device_name || ''),
+            platform: String(r.platform || ''),
+            ip: String(r.ip || ''),
+            city: String(r.city || ''),
+            createdAt: Number(r.created_at) || 0,
+            lastSeenAt: Number(r.last_seen_at) || 0
+        }));
+    } catch (err) {
+        console.error('[auth] list sessions failed:', err && err.message ? err.message : err);
+        return null;
+    }
+}
+
+async function upsertDeviceSession(userId, info) {
     const uid = String(userId || '').trim();
     const did = String((info && info.deviceId) || '').trim();
     if (!uid || !did) return null;
@@ -48,6 +110,7 @@ function upsertDeviceSession(userId, info) {
             deviceSessions.delete(userKeys[i][0]);
         }
     }
+    await persistDeviceSessionRow(session);
     return session;
 }
 
@@ -204,7 +267,7 @@ async function register(body) {
                updated_at = EXCLUDED.updated_at`,
             [userId, usernameCheck.username, name, avatar, passwordHash, email, now()]
         );
-        upsertDeviceSession(userId, {
+        await upsertDeviceSession(userId, {
             deviceId: body && body.deviceId,
             deviceName: body && body.deviceName,
             platform: body && body.platform,
@@ -249,7 +312,7 @@ async function login(body) {
         if (!row || !row.password_hash) return jsonErr('Неверный логин или пароль', 401);
         const ok = await verifyPassword(password, row.password_hash);
         if (!ok) return jsonErr('Неверный логин или пароль', 401);
-        upsertDeviceSession(row.id, {
+        await upsertDeviceSession(row.id, {
             deviceId: body && body.deviceId,
             deviceName: body && body.deviceName,
             platform: body && body.platform,
@@ -342,16 +405,16 @@ function qrConfirm(body) {
     return jsonOk({ success: true });
 }
 
-function qrPoll(body) {
+async function qrPoll(body) {
     const session = findQrSession((body && body.token) || '');
     if (!session) return jsonOk({ status: 'expired' });
     if (session.status === 'confirmed') {
         const user = session.user || {};
         const uid = String(user.appUserId || '').trim();
         if (uid) {
-            upsertDeviceSession(uid, session.pcDevice);
+            await upsertDeviceSession(uid, session.pcDevice);
             if (session.phoneDevice && session.phoneDevice.deviceId) {
-                upsertDeviceSession(uid, session.phoneDevice);
+                await upsertDeviceSession(uid, session.phoneDevice);
             }
         }
         qrSessions.delete(session.token);
@@ -360,37 +423,51 @@ function qrPoll(body) {
     return jsonOk({ status: 'waiting' });
 }
 
-function sessionsList(body) {
+async function sessionsList(body) {
     const uid = String((body && body.appUserId) || '').trim();
     const curDevice = String((body && body.deviceId) || '').trim();
     if (!uid) return jsonErr('Укажите аккаунт');
-    const list = [];
-    for (const [, s] of deviceSessions) {
-        if (s.userId === uid) {
-            list.push({
-                deviceId: s.deviceId,
-                deviceName: s.deviceName,
-                platform: s.platform,
-                ip: s.ip,
-                city: s.city,
-                createdAt: s.createdAt,
-                lastSeenAt: s.lastSeenAt,
-                isCurrent: !!curDevice && s.deviceId === curDevice
-            });
+    // Текущее устройство всегда видно в списке: регистрируем/обновляем его прямо из запроса списка.
+    if (curDevice) {
+        await upsertDeviceSession(uid, {
+            deviceId: curDevice,
+            deviceName: (body && body.deviceName),
+            platform: (body && body.platform),
+            ip: (body && body.ip),
+            city: (body && body.city)
+        });
+    }
+    const fromDb = await listDeviceSessionsFromDb(uid);
+    let sessions = fromDb;
+    if (!sessions) {
+        sessions = [];
+        for (const [, s] of deviceSessions) {
+            if (s.userId === uid) sessions.push(s);
         }
     }
-    list.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
-    console.error('[DIAG] sessions_list: uid=' + uid + ' curDevice=' + (curDevice || '(empty)') + ' entries=' + list.map((s) => (s.deviceId || '(empty)') + (s.isCurrent ? '*' : '')).join(','));
-    return jsonOk({ sessions: list });
+    sessions = sessions.map((s) => ({
+        deviceId: s.deviceId,
+        deviceName: s.deviceName,
+        platform: s.platform,
+        ip: s.ip,
+        city: s.city,
+        createdAt: s.createdAt,
+        lastSeenAt: s.lastSeenAt,
+        isCurrent: !!curDevice && s.deviceId === curDevice
+    }));
+    sessions.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    console.error('[DIAG] sessions_list: uid=' + uid + ' curDevice=' + (curDevice || '(empty)') + ' entries=' + sessions.map((s) => (s.deviceId || '(empty)') + (s.isCurrent ? '*' : '')).join(','));
+    return jsonOk({ sessions });
 }
 
-function sessionsTerminate(body) {
+async function sessionsTerminate(body) {
     const uid = String((body && body.appUserId) || '').trim();
     const curDevice = String((body && body.deviceId) || '').trim();
     const target = String((body && body.targetId) || '').trim();
     if (!uid || !target) return jsonErr('Недостаточно данных');
     if (target === curDevice) return jsonErr('Нельзя завершить текущую сессию', 400);
     const existed = deviceSessions.delete(sessionKey(uid, target));
+    await deleteDeviceSessionRow(uid, target);
     return jsonOk({ removed: existed });
 }
 

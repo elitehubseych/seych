@@ -34,7 +34,7 @@
                 ws.__closingByUser = true;
             }
             ws?.close();
-            history.replaceState(null, '', getBasePath());
+            history.replaceState(null, '', getRootBasePath());
             try {
                 const csr = document.getElementById('callScreenRoot');
                 if (csr) csr.remove();
@@ -339,7 +339,8 @@
                     type: 'messenger-register',
                     appUserId: authProfile.appUserId || appUserId,
                     userName: authProfile.name || userName || '',
-                    userAvatar: authProfile.avatar || ''
+                    userAvatar: authProfile.avatar || '',
+                    deviceId: typeof getSeychDeviceId === 'function' ? getSeychDeviceId() : ''
                 });
             }
             return true;
@@ -361,6 +362,7 @@
                 appUserId: authProfile.appUserId,
                 userName: authProfile.name || userName || '',
                 userAvatar: authProfile.avatar || '',
+                deviceId: typeof getSeychDeviceId === 'function' ? getSeychDeviceId() : '',
                 username: ensureGeneratedMessengerUsername(messengerProfile.username || authProfile.vkUsername || '', authProfile.appUserId),
                 statusText: messengerProfile.statusText || '',
                 privacy: messengerProfile.privacy,
@@ -1353,6 +1355,7 @@
             persistMessengerSessionChat(messengerActiveChatId);
             persistMessengerSessionPeer(peer);
             sendMessengerEvent({ type: 'messenger-open-chat', chatId: messengerActiveChatId, withUserId: peer });
+            markMessengerWorkspaceDirty(messengerActiveChatId);
             renderMainScreen();
         }
 
@@ -1385,24 +1388,25 @@
             persistMessengerSessionChat(messengerActiveChatId);
             persistMessengerSessionPeer('');
             sendMessengerEvent({ type: 'messenger-open-chat', chatId: messengerActiveChatId });
+            markMessengerWorkspaceDirty(messengerActiveChatId);
             renderMainScreen();
         }
 
-        function renderNotificationsWorkspace() {
+        function buildNotificationsListHtml() {
             const list = Array.isArray(messengerNotifications) ? messengerNotifications : [];
             if (!list.length) {
-                return `<div class="workspace-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+                return `<div class="workspace-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 0;">
                     <div style="opacity:.9;font-size:20px;font-weight:700;">Уведомлений нет</div>
                     <div style="opacity:.72;">Здесь появятся реакции, упоминания и системные события чатов</div>
                 </div>`;
             }
-            const items = list.map((it) => {
+            return list.map((it) => {
                 const chatTitle = String(it.chatTitle || it.chatId || 'Чат').trim() || 'Чат';
                 const ts = new Date(Number(it.createdAt || Date.now())).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 const unread = messengerNotificationUnreadIds.has(String(it.id || ''));
                 const actorName = String(it.actorName || '').trim() || 'Пользователь';
                 const actorInitials = String(it.actorInitials || '').trim() || actorName.split(/\s+/).filter(Boolean).map((p) => p.charAt(0)).join('').slice(0, 2).toUpperCase();
-                
+
                 let icon = 'fa-bell';
                 let typeLabel = 'Уведомление';
                 if (it.type === 'mention') {
@@ -1415,7 +1419,7 @@
                     icon = 'fa-info-circle';
                     typeLabel = 'Событие';
                 }
-                
+
                 let metaHtml = '';
                 if (it.duration || it.reason) {
                     metaHtml = `<div class="messenger-notification-meta">
@@ -1423,7 +1427,7 @@
                         ${it.reason ? `<div class="messenger-notification-meta-item"><b>Причина:</b> ${escapeHtml(it.reason)}</div>` : ''}
                     </div>`;
                 }
-                
+
                 return `<div class="messenger-notification-card" style="cursor:pointer;transition:background .15s ease;" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background=''" onclick="openMessengerNotification('${escapeHtml(it.id || '')}')">
                     <div class="messenger-notification-chat-row">
                         <div class="messenger-notification-avatar">
@@ -1457,7 +1461,66 @@
                     ${metaHtml}
                 </div>`;
             }).join('');
-            return `<div class="workspace-scroll" style="padding:8px 6px;">${items}</div>`;
+        }
+
+        function renderNotificationsWorkspace() {
+            return `<div class="workspace-scroll" style="padding:8px 6px;">${buildNotificationsListHtml()}</div>`;
+        }
+
+        let notificationsModalOpen = false;
+
+        function refreshNotificationsModalContent() {
+            const modal = document.getElementById('notifModal');
+            if (!modal || !notificationsModalOpen) return;
+            const scroll = modal.querySelector('.notif-modal-scroll');
+            if (!scroll) return;
+            const st = scroll.scrollTop;
+            scroll.innerHTML = buildNotificationsListHtml();
+            scroll.scrollTop = st;
+            const count = getMessengerNotificationUnreadTotal ? getMessengerNotificationUnreadTotal() : 0;
+            const clearBtn = modal.querySelector('#notifModalClearAll');
+            if (clearBtn) clearBtn.style.display = count ? '' : 'none';
+        }
+
+        function openNotificationsModal() {
+            notificationsModalOpen = true;
+            let modal = document.getElementById('notifModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'notifModal';
+                modal.className = 'notif-modal-root';
+                modal.innerHTML = `
+                    <div class="notif-modal-overlay" data-close="1"></div>
+                    <div class="notif-modal" role="dialog" aria-modal="true" aria-label="Уведомления">
+                        <div class="notif-modal-header">
+                            <div class="notif-modal-title"><i class="fas fa-bell"></i> Уведомления</div>
+                            <div class="notif-modal-actions">
+                                <button type="button" class="notif-modal-clear" id="notifModalClearAll" onclick="markMessengerNotificationsRead(); refreshNotificationsModalContent();">Прочитать все</button>
+                                <button type="button" class="notif-modal-close" onclick="closeNotificationsModal()" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="notif-modal-scroll">${buildNotificationsListHtml()}</div>
+                    </div>`;
+                document.body.appendChild(modal);
+                modal.querySelector('.notif-modal-overlay').addEventListener('click', (e) => {
+                    if (e.target && e.target.getAttribute && e.target.getAttribute('data-close') === '1') {
+                        closeNotificationsModal();
+                    }
+                });
+                document.addEventListener('keydown', function notifEsc(e) {
+                    if (e.key === 'Escape') closeNotificationsModal();
+                });
+            }
+            refreshNotificationsModalContent();
+            modal.classList.add('notif-modal-root--open');
+            document.body.classList.add('notif-modal-lock');
+        }
+
+        function closeNotificationsModal() {
+            notificationsModalOpen = false;
+            const modal = document.getElementById('notifModal');
+            if (modal) modal.classList.remove('notif-modal-root--open');
+            document.body.classList.remove('notif-modal-lock');
         }
 
         function openUserProfile(targetUserId) {
@@ -2616,6 +2679,7 @@
             if (idx >= 0) next[idx] = msg;
             else next.push(msg);
             messengerMessages.set(chatId, next.slice(-300));
+            markMessengerWorkspaceDirty(chatId);
         }
 
         function sendMessageFromComposer() {

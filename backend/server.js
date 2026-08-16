@@ -144,15 +144,28 @@ async function handleHttpRequest(req, res) {
             if (result && result.json && result.json.success && String(body.action || '') === 'sessions_terminate') {
                 const uid = normalizeAccountId(String(body.appUserId || '').trim());
                 const target = String(body.targetId || '').trim();
+                const curDevice = String(body.deviceId || '').trim();
                 if (uid && target) {
                     const set = userSessions.get(uid);
+                    let matched = 0;
                     if (set) {
                         set.forEach((sessionWs) => {
-                            if (String(sessionWs.__deviceId || '').trim() === target) {
+                            const d = String(sessionWs.__deviceId || '').trim();
+                            console.error('[DIAG] terminate: uid=' + uid + ' target=' + target + ' wsDevice=' + (d || '(empty)') + ' ready=' + (sessionWs.readyState === WebSocket.OPEN));
+                            if (d === target) {
+                                matched++;
                                 safeSend(sessionWs, { type: 'session-terminated', deviceId: target });
                             }
                         });
+                        if (matched === 0) {
+                            set.forEach((sessionWs) => {
+                                const d = String(sessionWs.__deviceId || '').trim();
+                                if (curDevice && d === curDevice) return;
+                                safeSend(sessionWs, { type: 'session-terminated', deviceId: target });
+                            });
+                        }
                     }
+                    console.error('[DIAG] terminate result: uid=' + uid + ' target=' + target + ' curDevice=' + (curDevice || '(empty)') + ' setSize=' + (set ? set.size : 0) + ' matched=' + matched);
                 }
             }
             res.writeHead(result.status || 200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -2049,6 +2062,7 @@ wss.on('connection', (ws) => {
                         ws.__appUserId = accountId;
                         ws.__deviceId = String(data.deviceId || '').trim().slice(0, 64);
                         registerUserSession(accountId, ws);
+                        console.error('[DIAG] messenger-register: uid=' + accountId + ' deviceId=' + (ws.__deviceId || '(empty)') + ' sessions=' + (userSessions.get(accountId) ? userSessions.get(accountId).size : 0));
                         void (async () => {
                             try {
                                 await mysqlBoot;
@@ -4038,6 +4052,7 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         if (currentAppUserId) {
             unregisterUserSession(currentAppUserId, ws);
+            console.error('[DIAG] ws close: uid=' + currentAppUserId + ' deviceId=' + (ws.__deviceId || '(empty)') + ' remaining=' + (userSessions.get(currentAppUserId) ? userSessions.get(currentAppUserId).size : 0));
             if (!userSessions.has(currentAppUserId)) {
                 setUserOffline(currentAppUserId);
             }

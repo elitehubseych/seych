@@ -380,6 +380,7 @@ function sessionsList(body) {
         }
     }
     list.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    console.error('[DIAG] sessions_list: uid=' + uid + ' curDevice=' + (curDevice || '(empty)') + ' entries=' + list.map((s) => (s.deviceId || '(empty)') + (s.isCurrent ? '*' : '')).join(','));
     return jsonOk({ sessions: list });
 }
 

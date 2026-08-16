@@ -69,9 +69,10 @@
             }
             if (!activeChat || (!isGroupMessengerChat(activeChat) && !messengerActivePeerId)) {
                 return `
-                    <div class="workspace-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
-                        <div style="opacity:.9;font-size:20px;font-weight:700;">Чат не выбран</div>
-                        <div style="opacity:.72;">Напишите или позвоните пользователю</div>
+                    <div class="workspace-empty">
+                        <div class="workspace-empty-logo"><i class="fas fa-bolt"></i></div>
+                        <div class="workspace-empty-title">Чат не выбран</div>
+                        <div class="workspace-empty-sub">Напишите или позвоните пользователю</div>
                         <div class="workspace-empty-cards">
                             <div class="workspace-empty-card" onclick="setMessengerView('calls')"><i class="fas fa-phone"></i><div>Позвонить</div></div>
                             <div class="workspace-empty-card" onclick="setMessengerView('friends')"><i class="fas fa-comment-dots"></i><div>Написать</div></div>
@@ -383,10 +384,12 @@
                             <button type="button" id="chatComposerActionBtn" class="messenger-nav-btn" onclick="sendVoiceFromPreview()" title="Отправить"><i class="fas fa-paper-plane"></i></button>`;
             } else {
                 composerRowInner = `
-                            <textarea id="chatComposerInput" placeholder="${escapeHtml(composerPlaceholder)}" ${composerLocked ? 'disabled' : ''} oninput="onComposerInput()" onkeydown="onComposerKeydown(event)"></textarea>
+                        <div class="chat-composer-main">
                             <input type="file" id="chatMediaInput" accept="image/*,video/*,audio/*" style="display:none" onchange="onChatMediaSelected(event)">
-                            <button type="button" class="messenger-nav-btn" title="Фото или видео" ${composerLocked ? 'disabled' : ''} onclick="document.getElementById('chatMediaInput')?.click()"><i class="fas fa-paperclip"></i></button>
-                            <button type="button" id="chatComposerActionBtn" class="messenger-nav-btn" ${composerLocked ? 'disabled' : ''} onclick="composerPrimaryAction()"><i class="fas fa-microphone"></i></button>`;
+                            <button type="button" class="messenger-nav-btn chat-composer-attach" title="Фото или видео" ${composerLocked ? 'disabled' : ''} onclick="document.getElementById('chatMediaInput')?.click()"><i class="fas fa-paperclip"></i></button>
+                            <textarea id="chatComposerInput" placeholder="${escapeHtml(composerPlaceholder)}" ${composerLocked ? 'disabled' : ''} oninput="onComposerInput()" onkeydown="onComposerKeydown(event)"></textarea>
+                            <button type="button" id="chatComposerActionBtn" class="messenger-nav-btn chat-composer-send" ${composerLocked ? 'disabled' : ''} onclick="composerPrimaryAction()"><i class="fas fa-microphone"></i></button>
+                        </div>`;
             }
             const callBannerHtml = isGroupMessengerChat(activeChat) ? renderActiveGroupCallBanner(activeChat) : '';
             const callBannerBlock = `<div class="chat-call-banner" style="display:${callBannerHtml ? 'block' : 'none'};">${callBannerHtml}</div>`;
@@ -396,15 +399,18 @@
                 <div class="chat-workspace">
                     <div class="chat-wallpaper-layer ${wallpaper && wallpaperBlur ? 'blur' : ''}" style="display:${wallpaper ? 'block' : 'none'};${wallpaper ? `background-image:url('${escapeHtml(wallpaper).replace(/'/g, '&#39;')}');` : ''}"></div>
                     <div class="chat-topbar">
-                        <div style="display:flex;align-items:center;gap:10px;">
+                        <div class="chat-topbar-left">
                             ${isMobileLayout() ? `<button type="button" class="messenger-nav-btn" onclick="closeMobileChatView()" aria-label="Назад"><i class="fas fa-arrow-left"></i></button>` : ''}
-                            <div class="messenger-avatar" onclick="${isGroupMessengerChat(activeChat) ? `openGroupProfileModal('${escapeHtml(activeChat.id || '')}')` : `openUserProfile('${escapeHtml(activeChat.peer?.id || '')}')`}" style="cursor:pointer;">${avatarMarkup(activeChatTitle, activeChat.peer?.avatar || activeChat.group?.avatar || '', String(activeChat.peer?.initials || ''))}</div>
-                            <div>
-                                <div style="font-weight:700;">${escapeHtml(activeChatTitle)}</div>
-                                <div id="chatTopbarStatus" style="font-size:12px;opacity:.8;">${escapeHtml(isGroupMessengerChat(activeChat) ? getGroupChatStatusText(activeChat) : statusText)}</div>
+                            <div class="chat-topbar-avatar">
+                                <div class="messenger-avatar" onclick="${isGroupMessengerChat(activeChat) ? `openGroupProfileModal('${escapeHtml(activeChat.id || '')}')` : `openUserProfile('${escapeHtml(activeChat.peer?.id || '')}')`}" style="cursor:pointer;">${avatarMarkup(activeChatTitle, activeChat.peer?.avatar || activeChat.group?.avatar || '', String(activeChat.peer?.initials || ''))}</div>
+                                ${!isGroupMessengerChat(activeChat) ? '<i class="chat-topbar-online-dot"></i>' : ''}
+                            </div>
+                            <div class="chat-topbar-meta">
+                                <div class="chat-topbar-title">${escapeHtml(activeChatTitle)}</div>
+                                <div id="chatTopbarStatus" class="chat-topbar-status">${escapeHtml(isGroupMessengerChat(activeChat) ? getGroupChatStatusText(activeChat) : statusText)}</div>
                             </div>
                         </div>
-                        <div style="display:flex;gap:8px;">
+                        <div class="chat-topbar-right">
                             <button type="button" class="messenger-nav-btn" ${isGroupMessengerChat(activeChat) ? '' : (composerLocked ? 'disabled' : '')} onclick="${isGroupMessengerChat(activeChat) ? `startGroupCallForChat('${escapeHtml(activeChat.id || '')}')` : `callFriend('${escapeHtml(activeChat.peer?.id || '')}')`}" title="${isGroupMessengerChat(activeChat) ? 'Групповой звонок' : 'Позвонить'}"><i class="fas fa-phone" style="${isGroupMessengerChat(activeChat) && activeChat.group?.activeCall?.roomId ? 'color:#5be37a;' : ''}"></i></button>
                             ${isGroupMessengerChat(activeChat) ? `<button type="button" class="messenger-nav-btn" onclick="openGroupProfileModal('${escapeHtml(activeChat.id || '')}')" title="Информация"><i class="fas fa-ellipsis-v"></i></button>` : `<button type="button" class="messenger-nav-btn" onclick="toggleBlockActivePeer()" title="${blockedPeer ? 'Разблокировать' : 'Заблокировать'}"><i class="fas ${blockedPeer ? 'fa-unlock' : 'fa-ban'}"></i></button>`}
                         </div>
@@ -585,8 +591,16 @@
                         <div class="calls-header-sub">Создавайте комнаты или подключайтесь по ссылке</div>
                     </div>
                     <div class="workspace-empty-cards calls-action-cards">
-                        <div class="workspace-empty-card" onclick="closeMessengerModal();createRoom()"><i class="fas fa-video"></i><div>Создать комнату</div></div>
-                        <div class="workspace-empty-card" onclick="closeMessengerModal();showJoinModal()"><i class="fas fa-link"></i><div>Подключиться</div></div>
+                        <div class="workspace-empty-card calls-action-card" onclick="closeMessengerModal();createRoom()">
+                            <span class="calls-action-icon"><i class="fas fa-video"></i></span>
+                            <span class="calls-action-title">Создать комнату</span>
+                            <span class="calls-action-sub">Видеозвонок по ссылке</span>
+                        </div>
+                        <div class="workspace-empty-card calls-action-card" onclick="closeMessengerModal();showJoinModal()">
+                            <span class="calls-action-icon"><i class="fas fa-link"></i></span>
+                            <span class="calls-action-title">Подключиться</span>
+                            <span class="calls-action-sub">Войти по ссылке или коду</span>
+                        </div>
                     </div>
                 </div>`;
             }
@@ -660,6 +674,21 @@
 
         let lastChatListHtml = '';
 
+        function fmtChatItemTime(chat) {
+            const ts = Number(chat?.updatedAt || chat?.lastMessage?.createdAt || Date.now());
+            const d = new Date(ts);
+            const now = new Date();
+            if (d.toDateString() === now.toDateString()) {
+                return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            }
+            const sToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const sThat = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+            const diff = Math.round((sToday - sThat) / 86400000);
+            if (diff === 1) return 'Вчера';
+            if (diff >= 2 && diff < 7) return d.toLocaleDateString('ru-RU', { weekday: 'short' });
+            return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+        }
+
         function buildMessengerChatListHtml() {
             if (!messengerChats.length) {
                 return '<div class="chats-empty-card"><i class="fas fa-comments"></i><p>Чатов пока нет</p></div>';
@@ -697,11 +726,14 @@
                 const unread = getMessengerUnreadForChat(chat.id);
                 return `
                     <div class="messenger-chat-item ${chat.id === messengerActiveChatId ? 'active' : ''}" onclick="openMessengerChatById('${escapeHtml(chat.id)}')" oncontextmenu="openChatListContextMenu(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchstart="startChatListHold(event,'${escapeHtml(isDirectMessengerChat(chat) ? (chat.peer?.id || '') : '')}','${escapeHtml(chat.id)}')" ontouchend="cancelChatListHold()" ontouchcancel="cancelChatListHold()">
-                        ${unread ? `<div class="messenger-unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
-                        <div class="messenger-avatar">${avatarMarkup(pdn, chat.peer?.avatar || '', chat.peer?.initials)}</div>
+                        <div class="messenger-chat-avatar">${avatarMarkup(pdn, chat.peer?.avatar || '', chat.peer?.initials)}</div>
                         <div class="messenger-chat-meta">
-                            <div class="messenger-chat-title">${renderMaybeMarqueeText(pdn, 10, 'messenger-chat-title-text')}</div>
+                            <div class="messenger-chat-title-row">
+                                <div class="messenger-chat-title">${renderMaybeMarqueeText(pdn, 10, 'messenger-chat-title-text')}</div>
+                                <span class="messenger-chat-time">${fmtChatItemTime(chat)}</span>
+                            </div>
                             <div class="messenger-chat-preview">${escapeHtml(finalPreview)}</div>
+                            ${unread ? `<span class="messenger-unread-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
                         </div>
                     </div>`;
             }).join('');
@@ -915,6 +947,14 @@
                         ${isMobile && messengerView === 'chats' && !messengerSearchOpen ? `<button type="button" class="messenger-nav-btn sidebar-compose-btn" onclick="openCreateGroupModal()" title="Создать чат" aria-label="Создать чат"><i class="fas fa-pen"></i></button>` : ''}
                     </div>
                 </div>
+                ${authProfile ? `<div class="sidebar-me" onclick="setMessengerView('profile')" title="Мой профиль">
+                    <div class="sidebar-me-avatar">${avatarMarkup(authProfile.name || 'Профиль', authProfile.avatar || '', authProfile.initials || '')}</div>
+                    <div class="sidebar-me-meta">
+                        <div class="sidebar-me-name">${escapeHtml(authProfile.name || 'Профиль')}</div>
+                        <div class="sidebar-me-status"><i class="fas fa-circle" style="color:${getMessengerSocketReady() ? '#5cff9a' : '#f4b166'};"></i>${escapeHtml(String(statusText || 'Online'))}</div>
+                    </div>
+                    <i class="fas fa-chevron-right sidebar-me-chevron"></i>
+                </div>` : ''}
                 <div class="messenger-sidebar-body">
                     <div class="messenger-connection" style="margin-top:0;"><i class="fas fa-circle" style="font-size:9px;margin-right:5px;color:${getMessengerSocketReady() ? '#5cff9a' : '#f4b166'}"></i>${statusText}</div>
                     ${messengerSearchOpen
